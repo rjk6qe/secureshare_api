@@ -1,9 +1,14 @@
-{% load staticfiles %}
-<!DOCTYPE html>
+{% extends 'nav-bar.html' %}
 
+<!DOCTYPE html>
+{% load staticfiles %}
 <script src= "{% static 'javascript/src/jquery-1.12.4.js' %}"></script>
 <script src= "{% static 'javascript/login.js' %}"></script>
-
+<scirpt src = "{% static 'javascript/src/bootstrap-3.3.6-dist/js/bootstrap.js"></scirpt>
 <html>
-<button id="test">Click Me</button>
+{% block content %}
+{% block head %}
+<h2> hello there </h2>
+{%endblock%}
+{%endblock%}
 </html>

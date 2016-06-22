@@ -1,0 +1,11 @@
+{"token":"c6cf1c43085ae4ca980e74a1c2f2747c97122f17"}
+
+
+Obtain Token:
+	curl --data "username=<username>&password=<password>" http://127.0.0.1:8000/api-token/
+
+
+GET Request:
+	curl -H "Authorization: Token c6cf1c43085ae4ca980e74a1c2f2747c97122f17" http://127.0.0.1:8000/api/v1/reports/?format=json
+
+POST Request:
