@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
+from django.db.models import Q
 
 from rest_framework import permissions, viewsets, status, views
 from rest_framework.response import Response
@@ -50,28 +51,47 @@ class ReportView(views.APIView):
 	"""
 	serializer_class = ReportSerializer
 
-	def get(self,request):
+	def unique_report(self, user, report_name):
+		report_query = Report.objects.filter(name=report_name)
+		if report_query is None:
+			return True
+		for report in report_query:
+			if report.owner == user:
+				return False
+		return True
+
+	def get(self,request,pk=None):
+		if 'pk' in self.kwargs:
+			return Response(self.kwargs['pk'])
+		"""
+		For listing data
+		"""
 		user = self.request.user
 		if not user.is_anonymous():
-			queryset = Report.objects.filter(owner = user)
+			queryset = Report.objects.filter(Q(owner = user) | Q(private=False))
 		else:
-			"""
-			Delete this later, this is horrible
-			"""
-			queryset = Report.objects.all()
-		return Response(queryset, status = status.HTTP_200_OK)
+			return Response(status=status.HTTP_401_UNAUTHORIZED)
+		return Response(self.serializer_class(queryset, many=True).data, status = status.HTTP_200_OK)
 
 	def post(self, request):
-		user = self.request.user
+		"""
+		For creating reports
+		"""
 		serializer = self.serializer_class(data = request.data)
 		if serializer.is_valid():
-			r = serializer.save()
-			response_dict = {'key':r.pk}
-			return Response(response_dict, status = status.HTTP_201_CREATED)
+			if self.unique_report( request.user, serializer.validated_data['name'] ):
+				r = serializer.save(owner=request.user)
+				response_dict = {'key':r.pk}
+				return Response(serializer.data, status = status.HTTP_201_CREATED)
+			else:
+				return Response({'Error':'User already created this report'},status = status.HTTP_400_BAD_REQUEST)
 		else:
 			return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)		
 
 	def put(self, request):
+		"""
+		For uploading files for already existing reports
+		"""
 		pk = request.POST.get('report_number',None)
 		try:
 			report = Report.objects.get(pk=pk)
@@ -88,5 +108,17 @@ class ReportView(views.APIView):
 
 		except Content.DoesNotExist:
 			return Response({"message":"code does not correspond to a valild report"},status = status.HTTP_400_BAD_REQUEST)
+
+	def patch(self, request, pk=None):
+		"""
+		For updating existing reports
+		"""
+		
+
+
+	def delete(self, request):
+		"""
+		For deleting existing reports
+		"""
 
 # Create your views here.

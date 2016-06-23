@@ -14,50 +14,49 @@ class ReportSerializer(serializers.ModelSerializer):
 	name = serializers.CharField(required=False)
 	short_description = serializers.CharField(required = False)
 	long_description = serializers.CharField(required = False)
-	owner = serializers.CharField(max_length=30)
+#	owner = serializers.CharField(max_length=30)
 
 	class Meta:
 		model = Report
-		fields = ('name','short_description','long_description','owner')
+		fields = ('pk','name','private','short_description','long_description')
 
 	def unique_report(self, user, report_name):
 		report_query = Report.objects.filter(name=report_name)
-		owner = User.objects.get(username = user)
 		if report_query is None:
 			return True
 		for report in report_query:
-			if report.owner == owner:
-				return True #change back to false
+			if report.owner == user:
+				return False
 		return True
 
 	def validate(self, data):
-		username = data['owner']
-		report_name = data['name']
-		if not self.unique_report(username, report_name):
-			raise serializers.ValidationError("ERROR: user already created a report with this name")
-		return data
+		#user = data.get('owner',None)
+		report_name = data.get('name',None)
+		s_descr = data.get('short_description',None)
+		l_descr = data.get('long_description',None)
+		if report_name and s_descr and l_descr:
+				return data
+		else:
+			raise serializers.ValidationError({"Error":"Missing required fields"})
 
 	def create(self, validated_data):
-		username = validated_data.get('owner',None)
-		if username is not None:
-			owner_of_report = User.objects.get(username=username)
-
-		if owner_of_report is not None:
+		user = validated_data.get('owner',None)
+		if user is not None:
 			r = Report.objects.create(
 				name=validated_data.get('name',None),
 				short_description = validated_data.get('short_description',None),
 				long_description = validated_data.get('long_description',None),
-				owner = owner_of_report
+				owner = user
 				)
 			r.save()
 		return r
 
-	def update(self, instance, validated_data): 
-		instance.name = validated_data.get('name',instance.name)
-		instance.short_description = validated_data.get('short_description',instance.short_description)
-		instance.long_description = validated_data.get('long_description',instance.long_description)
-		instance.save()
-		return instance
+	# def update(self, instance, validated_data): 
+	# 	instance.name = validated_data.get('name',instance.name)
+	# 	instance.short_description = validated_data.get('short_description',instance.short_description)
+	# 	instance.long_description = validated_data.get('long_description',instance.long_description)
+	# 	instance.save()
+	# 	return instance
 
 
 
