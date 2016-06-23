@@ -1,11 +1,13 @@
-{"token":"c6cf1c43085ae4ca980e74a1c2f2747c97122f17"}
+8f9cd783fb5ee7261dd1ecd1de09fe4188fe129a
 
+Register User:
+	curl -H "Content-Type: application/json" -d '{"username":"richard","password":"richard"}' http://127.0.0.1:8000/api/v1/register/
 
 Obtain Token:
-	curl --data "username=<username>&password=<password>" http://127.0.0.1:8000/api-token/
+	curl -H "Content-Type: application/json" -d '{"username":"richard","password":"richard"}' http://127.0.0.1:8000/api/v1/login/
 
+Create Report:
+	curl -H "Authorization: Token 8f9cd783fb5ee7261dd1ecd1de09fe4188fe129a" -H "Content-Type: application/json" -d '{"owner":"richard", "name":"nope", "short_description":"short", "long_description":"long"}' http://127.0.0.1:8000/api/v1/reports/
 
-GET Request:
-	curl -H "Authorization: Token c6cf1c43085ae4ca980e74a1c2f2747c97122f17" http://127.0.0.1:8000/api/v1/reports/?format=json
-
-POST Request:
+Upload File after Report has been created:
+	curl -X PUT -H "Authorization: Token 8f9cd783fb5ee7261dd1ecd1de09fe4188fe129a" -F "file=@/home/richard/secureshare/fail.html" -F "file=@/home/richard/secureshare/runtime.txt" -F "report_number=3" http://127.0.0.1:8000/api/v1/reports/

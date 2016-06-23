@@ -1,9 +1,9 @@
 from django.contrib.auth.models import User
 
 from rest_framework import serializers
-
 from rest_framework.authtoken.models import Token
 
+from authentication.models import UserProfile
 
 class UserSerializer(serializers.ModelSerializer):
 
@@ -31,6 +31,7 @@ class UserSerializer(serializers.ModelSerializer):
 			u = User.objects.create(username=new_username)
 			u.set_password(new_password)
 			u.save()
+			up = UserProfile.objects.create(user=u)
+			up.save()
 			Token.objects.create(user = u)
 			return u
-

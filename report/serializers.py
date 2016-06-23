@@ -2,11 +2,14 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.models import User
 
 from rest_framework import serializers
+from rest_framework.parsers import MultiPartParser, JSONParser
 
 from report.models import Report#, Message
 
 class ReportSerializer(serializers.ModelSerializer):
 	#optional fields go here
+
+	parsers = (MultiPartParser, JSONParser)
 
 	name = serializers.CharField(required=False)
 	short_description = serializers.CharField(required = False)
@@ -24,7 +27,7 @@ class ReportSerializer(serializers.ModelSerializer):
 			return True
 		for report in report_query:
 			if report.owner == owner:
-				return False
+				return True #change back to false
 		return True
 
 	def validate(self, data):
