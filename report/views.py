@@ -68,10 +68,11 @@ class ReportView(views.APIView):
 		"""
 		user = self.request.user
 		if not user.is_anonymous():
+			user_profile = UserProfile.objects.get(user=user)
 			if 'pk' in self.kwargs:
 				try:
 					selected = Report.objects.get(pk=self.kwargs['pk'])
-					if selected.owner == request.user or selected.private == False:
+					if selected.owner == request.user or selected.private == False or user_profile.site_manager:
 						return Response(
 							self.serializer_class(selected).data,
 							status=status.HTTP_200_OK
@@ -82,7 +83,6 @@ class ReportView(views.APIView):
 						status=status.HTTP_400_BAD_REQUEST
 						)
 			else:
-				user_profile = UserProfile.objects.get(user=user)
 				if user_profile.site_manager:
 					queryset = Report.objects.all()
 				else:
@@ -94,7 +94,7 @@ class ReportView(views.APIView):
 					status = status.HTTP_200_OK
 					)
 		return Response(
-			status=HTTP_401_UNAUTHORIZED
+			status=status.HTTP_401_UNAUTHORIZED
 			)
 
 	def post(self, request,pk=None):
@@ -169,14 +169,16 @@ class ReportView(views.APIView):
 				)
 		try:
 			report = Report.objects.get(pk=self.kwargs['pk'])
+			if report.owner != request.user:
+				return Response(status = status.HTTP_401_UNAUTHORIZED)
 			serializer = self.serializer_class(report, data = request.data)
 			if serializer.is_valid():
 				serializer.save()
-				return Response(status=status.HTTP_200_OK)
+				return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 			else:
 				return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
 		except ObjectDoesNotExist:
-			return Response("{'message':'does not exist'}",status = status.HTTP_400_BAD_REQUEST)
+			return Response("{'Error':'does not exist'}",status = status.HTTP_400_BAD_REQUEST)
 
 
 	def delete(self, request, pk=None):

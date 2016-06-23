@@ -64,6 +64,7 @@ class ReportSerializer(serializers.ModelSerializer):
 				name=validated_data.get('name',None),
 				short_description = validated_data.get('short_description',None),
 				long_description = validated_data.get('long_description',None),
+				private = validated_data.get('private',False),
 				owner = user
 				)
 			r.save()
