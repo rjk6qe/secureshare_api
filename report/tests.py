@@ -276,5 +276,3 @@ class ReportTests(APITestCase):
 			self.private_report_data['name'],
 			msg="Incorrect field name"
 			)
-
-

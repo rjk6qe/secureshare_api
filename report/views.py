@@ -10,42 +10,6 @@ from report.serializers import ReportSerializer#, MessageSerializer
 from report.models import Report, Document#, Message
 from authentication.models import UserProfile
 
-# class ReportViewSet(viewsets.ModelViewSet):
-# 	"""
-# 	works with:
-# 	curl -H "Authorization: Token 8f9cd783fb5ee7261dd1ecd1de09fe4188fe129a" -F "file=@/home/richard/secureshare/secureshare/media/text/test.txt" -F "owner=richard" -F" name=files are fun2" -F "short_description=test" -F "long_description=testing" http://127.0.0.1:8000/api/v1/reports/
-
-# 	Problem is the POST isn't JSON encoded, which seems bad
-# 	"""
-# 	serializer_class = ReportSerializer
-# 	permission_classes = (permissions.AllowAny,)
-	
-# 	def get_queryset(self):
-# 		pass
-
-	
-# 	def create(self, request):
-# 		serializer = self.serializer_class(data = request.data)
-# 		if serializer.is_valid():
-# 			r = serializer.save()
-# 			print(r.name)
-# 			file_dict = request.FILES
-# 			for filename in file_dict:
-# 				print("found file")
-# 				new_doc = Document(file = request.FILES[filename])
-# 				new_doc.save()
-# 				r.files.add(new_doc)
-# 			return Response(serializer.validated_data)
-# 		else:
-# 			return Response(serializer.errors)
-# 	"""
-# 	def list(self, request):
-# 		user = request.user
-# 		queryset = Report.objects.filter(owner = user)
-# 		serializer = ReportSerializer(queryset, many=True)
-# 		return Response(serializer.data, status = status.HTTP_200_OK)
-# 	"""
-
 class ReportView(views.APIView):
 	"""
 	Create new report using POST

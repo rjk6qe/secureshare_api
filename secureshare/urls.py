@@ -8,7 +8,7 @@ from rest_framework.authtoken import views
 
 from report.views import ReportView
 from secureshare_messages.views import MessageViewSet
-from authentication.views import RegisterView, LoginView
+from authentication.views import RegisterView, LoginView, GenerateView
 
 router = routers.SimpleRouter()
 #router.register(r'reports',ReportViewSet, base_name='Report')
@@ -23,6 +23,7 @@ urlpatterns = [
 
     url(r'^api/v1/register/',RegisterView.as_view()),
     url(r'^api/v1/login/',LoginView.as_view()),
+    url(r'^api/v1/encrypt/generate/', GenerateView.as_view()),
 
     url(r'^api/v1/reports/$',ReportView.as_view()),
     url(r'^api/v1/reports/(?P<pk>[0-9]+)/$',ReportView.as_view()),

@@ -1,7 +1,8 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
+from django.core.servers.basehttp import FileWrapper
 
 from rest_framework import views, status
 from rest_framework.response import Response
@@ -9,7 +10,10 @@ from rest_framework import authentication, permissions
 from rest_framework.authtoken.models import Token
 
 from authentication.serializers import UserSerializer
+from authentication.models import UserProfile
 
+from Crypto.PublicKey import RSA
+import tempfile
 
 class RegisterView(views.APIView):
 	permission_classes = (permissions.AllowAny, )
@@ -23,7 +27,7 @@ class RegisterView(views.APIView):
 		serializer = self.serializer_class(data = request.data)
 		if serializer.is_valid():
 			serializer.save()
-			return Response(serializer.data, status = status.HTTP_201_CREATED)
+			return Response(status = status.HTTP_201_CREATED)
 		else:
 			return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
 
@@ -55,6 +59,53 @@ class LoginView(views.APIView):
 		else:
 			return Response("ERROR: invalid username or password", status = status.HTTP_401_UNAUTHORIZED)
 		
+class GenerateView(views.APIView):
+
+	def post(self, request):
+		user = request.user
+		user_profile = UserProfile.objects.get(user=user)
+		if user_profile.public_key == b'':
+			key = RSA.generate(2048)
+			user_profile.public_key = key.publickey().exportKey('PEM')
+			user_profile.save()
+			temp = tempfile.NamedTemporaryFile(delete=True)
+			try:
+				temp.write(key.exportKey('PEM'))
+				temp.seek(0)
+				file_name = user.username + '_private_key.pem'
+				response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
+				response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
+			finally:
+				temp.close()
+				return response
+		else:
+			return Response(
+				{"Error":"Key already generated, submit PATCH request"}, 
+				status = status.HTTP_400_BAD_REQUEST
+				)
+
+	def patch(self, request,pk=None):
+		user = request.user
+		user_profile = UserProfile.objects.get(user=user)
+		if user_profile.public_key == b'':
+			return Response(
+				{"Error":"Submit POST to generate key"},
+				status=status.HTTP_400_BAD_REQUEST
+				)
+		else:
+			key = RSA.generate(2048)
+			user_profile.public_key = key.publickey().exportKey('PEM')
+			user_profile.save()
+			temp = tempfile.NamedTemporaryFile(delete=True)
+			try:
+				temp.write(key.exportKey('PEM'))
+				temp.seek(0)
+				file_name = user.username + '_private_key.pem'
+				response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
+				response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
+			finally:
+				temp.close()
+				return response
 
 # class UserViewSet(viewsets.ModelViewSet):
 # 	serializer_class = UserSerializer

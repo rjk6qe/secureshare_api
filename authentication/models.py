@@ -5,3 +5,4 @@ from rest_framework.authtoken.models import Token
 class UserProfile(models.Model):
 	user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,)
 	site_manager = models.BooleanField(default=False)
+	public_key = models.BinaryField()
