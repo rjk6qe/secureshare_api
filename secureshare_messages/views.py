@@ -12,8 +12,9 @@ from authentication.models import UserProfile
 from secureshare_messages.models import Message
 from secureshare_messages.serializers import MessageSerializer
 
+from Crypto.PublicKey import RSA
 import requests
-
+import ast
 
 class MessageViewSet(viewsets.ModelViewSet):
 	
@@ -92,6 +93,8 @@ class MessageOutboxView(views.APIView):
 
 class MessageDecryptView(views.APIView):
 
+	serializer_class = MessageSerializer
+
 	def post(self, request, pk=None):
 		if 'pk' not in self.kwargs:
 			return Response(
@@ -103,11 +106,27 @@ class MessageDecryptView(views.APIView):
 			msg = Message.objects.get(pk=pk)
 			if not msg.recipient == request.user:
 				raise ObjectDoesNotExist
-			# file = request.FILES.get('private_key')
-			# print(file.content)
-			return Response(status = status.HTTP_200_OK)
+
+			file = request.FILES.get('private_key',None)
+			if file is None:
+				return Response({"Message":"No private key uploaded"},status=status.HTTP_400_BAD_REQUEST)
+			
+			try:
+				private_key = RSA.importKey(file.read())
+				d_msg_subject = private_key.decrypt(ast.literal_eval(msg.subject)).decode('utf-8')
+				d_msg_body = private_key.decrypt(ast.literal_eval(msg.body)).decode('utf-8')
+				msg_dict = {"subject":d_msg_subject, "body":d_msg_body}
+				decrypted_msg = self.serializer_class(data=msg_dict)
+				
+				if decrypted_msg.is_valid():
+					return Response(decrypted_msg.data, status = status.HTTP_200_OK)
+				else:
+					return Response({"Message":"Message was not decrypted"},status = status.HTTP_400_BAD_REQUEST)
+
+			except (IndexError, ValueError):
+				return Response({"Message":"Invalid Key"}, status = status.HTTP_400_BAD_REQUEST)
 		except ObjectDoesNotExist:
 			return Response(
-				{"Message":"Either invalid key or user cannot decrypt this message"},
+				{"Message":"Either invalid message id or user cannot decrypt this message"},
 				status = status.HTTP_400_BAD_REQUEST
 				)

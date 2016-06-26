@@ -26,8 +26,8 @@ class UserTests(APITestCase):
 
 	user_data = {"username":list_of_users[0],"password":list_of_passwords[0],"email":"fake@fake.com","testing":'True'}
 
-	register_url = '/api/v1/register/'
-	login_url = '/api/v1/login/'
+	register_url = '/api/v1/users/register/'
+	login_url = '/api/v1/users/login/'
 	generate_url = '/api/v1/encrypt/generate/'
 
 	serializer_class = ReportSerializer

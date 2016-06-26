@@ -38,10 +38,10 @@ class UserSerializer(serializers.ModelSerializer):
 		new_password = validated_data.get('password',None)
 		new_email = validated_data.get('email', None)
 
-		u = User.objects.create(username=new_username)
-		u.set_password(new_password)
-		u.save()
-		user_profile = UserProfile.objects.create(user=u)
+		user = User.objects.create(username=new_username)
+		user.set_password(new_password)
+		user.save()
+		user_profile = UserProfile.objects.create(user=user)
 		user_profile.save()
 
 		key = RSA.generate(2048)
@@ -57,10 +57,12 @@ class UserSerializer(serializers.ModelSerializer):
 					)
 				# temp.write(key.exportKey('PEM'))
 				# temp.seek(0)
-				file_name = user.username + '_private_key.pem'
 				email.attach(file_name, key.exportKey('PEM'), 'application/pdf')
 			finally:
 				email.send(fail_silently=False)
 
-		Token.objects.create(user=u)
-		return u
+		file_name = user.username + '_private_key.pem'
+		with open('/home/richard/secureshare/'+file_name, 'wb') as f:
+			f.write(key.exportKey('PEM'))	
+		Token.objects.create(user=user)
+		return user

@@ -46,6 +46,5 @@ class MessageSerializer(serializers.ModelSerializer):
 			body = body,
 			encrypted = encrypted 
 			)
-
 		m.save()
 		return m

@@ -34,12 +34,14 @@ class MessageTests(APITestCase):
 	"encrypted":"True"
 	}
 
-	register_url = '/api/v1/register/'
-	login_url = '/api/v1/login/'
+	register_url = '/api/v1/users/register/'
+	login_url = '/api/v1/users/login/'
 
 	message_inbox_url = '/api/v1/messages/inbox/'
 	message_send_url = '/api/v1/messages/send/'
 	message_outbox_url = '/api/v1/messages/outbox/'
+	message_decrypt_url = '/api/v1/messages/decrypt/'
+
 
 	def generate_users_receive_tokens(self):
 		size_of_list = len(self.list_of_users)
@@ -48,12 +50,14 @@ class MessageTests(APITestCase):
 		for i in range(0, size_of_list):
 			self.user_data['username'] = self.list_of_users[i]
 			self.user_data['password'] = self.list_of_passwords[i]			
-			self.client.post(self.register_url, self.user_data, format='json')
+			response = self.client.post(self.register_url, self.user_data, format='json')
 			self.assertEqual(
-				User.objects.count(),
-				i+1,
-				msg="Users not created"
-			)
+				response.status_code,
+				status.HTTP_201_CREATED,
+				msg="user not made"
+				)
+
+
 			response = self.client.post(self.login_url, self.user_data, format='json')
 			self.assertEqual(
 				response.status_code,
@@ -61,6 +65,12 @@ class MessageTests(APITestCase):
 				msg="invalid user"
 				)
 			token_list.append(response.data['token'])
+
+		self.assertEqual(
+				User.objects.count(),
+				size_of_list,	
+				msg="Users not created"
+			)
 		return token_list
 
 	def test_send(self):
@@ -149,6 +159,68 @@ class MessageTests(APITestCase):
 			self.message_encrypted_data['body'],
 			msg="Body was not encrypted"
 			)
+
+	def test_decrypt_message(self):
+		token_list = self.generate_users_receive_tokens()
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+
+		self.message_encrypted_data['recipient'] = "user2"
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + user_one_token)
+		response = self.client.post(self.message_send_url, data=self.message_encrypted_data,format='json')
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + user_two_token)
+		response = self.client.get(self.message_inbox_url)
+
+		msg_data = response.data[0]
+		msg_pk = msg_data['pk']
+
+		user_one = Token.objects.get(key=token_list[0]).user
+		user_one_private_key = open('/home/richard/secureshare/' + user_one.username + '_private_key.pem')
+
+		user_two = Token.objects.get(key=token_list[1]).user
+		user_two_private_key = open('/home/richard/secureshare/' + user_two.username + '_private_key.pem')
+
+
+		response = self.client.post(self.message_decrypt_url + str(msg_pk) + '/', {"private_key":user_two_private_key}, format='multipart')
+		decrypted_message = response.data
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Incorrect response"
+			)
+		self.assertEqual(
+			decrypted_message['subject'],
+			self.message_encrypted_data['subject'],
+			msg="Subject was not decrypted"
+			)
+		self.assertEqual(
+			decrypted_message['body'],
+			self.message_encrypted_data['body'],
+			msg="Body was not decrypted"
+			)
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + user_one_token)
+		response = self.client.post(self.message_decrypt_url + str(msg_pk) + '/', {"private_key":user_two_private_key}, format='multipart')
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
+			msg="Decrypted message not received by a user"
+			)
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + user_two_token)
+		response = self.client.post(self.message_decrypt_url + str(msg_pk) + '/', {"private_key":user_one_private_key}, format='multipart')
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
+			msg="Accepted incorrect key for decryption"
+			)
+
+
+		user_one_private_key.close()
+		user_two_private_key.close()
+
+
 
 
 	def test_get(self):

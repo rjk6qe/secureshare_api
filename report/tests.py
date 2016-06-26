@@ -19,8 +19,8 @@ class ReportTests(APITestCase):
 	list_of_users = ['user1','user2','user3','user4','user5']
 	list_of_passwords = ['password1','password2', 'password3', 'password4', 'password5']
 
-	register_url = '/api/v1/register/'
-	login_url = '/api/v1/login/'
+	register_url = '/api/v1/users/register/'
+	login_url = '/api/v1/users/login/'
 	reports_url = '/api/v1/reports/'
 
 	private_report_data = { "name": "This is a Report", 
