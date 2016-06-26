@@ -7,12 +7,12 @@ from rest_framework import routers
 from rest_framework.authtoken import views
 
 from report.views import ReportView
-from secureshare_messages.views import MessageViewSet
+from secureshare_messages.views import MessageInboxView, MessageSendView, MessageOutboxView, MessageDecryptView
 from authentication.views import RegisterView, LoginView, GenerateView
 
 router = routers.SimpleRouter()
 #router.register(r'reports',ReportViewSet, base_name='Report')
-router.register(r'messages',MessageViewSet, base_name='Message')
+#router.register(r'messages',MessageViewSet, base_name='Message')
 
 urlpatterns = [
     # Examples:
@@ -23,10 +23,16 @@ urlpatterns = [
 
     url(r'^api/v1/register/',RegisterView.as_view()),
     url(r'^api/v1/login/',LoginView.as_view()),
-    url(r'^api/v1/encrypt/generate/', GenerateView.as_view()),
+#    url(r'^api/v1/encrypt/generate/', GenerateView.as_view()),
 
     url(r'^api/v1/reports/$',ReportView.as_view()),
     url(r'^api/v1/reports/(?P<pk>[0-9]+)/$',ReportView.as_view()),
+
+    url(r'^api/v1/messages/inbox/$',MessageInboxView.as_view()),
+    url(r'^api/v1/messages/inbox/(?P<pk>[0-9]+)/$',MessageInboxView.as_view()),
+    url(r'^api/v1/messages/outbox/',MessageOutboxView.as_view()),
+    url(r'^api/v1/messages/send/',MessageSendView.as_view()),
+    url(r'^api/v1/messages/decrypt/(?P<pk>[0-9]+)/$', MessageDecryptView.as_view()),
 
 #    url(r'^api-token/',views.obtain_auth_token), # This view doesn't do anything, it just queries the database and returns the Token where user = authenticate
 

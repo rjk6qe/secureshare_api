@@ -4,6 +4,8 @@ from django.contrib.auth import authenticate
 from django.http import JsonResponse, HttpResponse
 from django.core.servers.basehttp import FileWrapper
 
+from django.core.mail import EmailMessage
+
 from rest_framework import views, status
 from rest_framework.response import Response
 from rest_framework import authentication, permissions
@@ -61,23 +63,41 @@ class LoginView(views.APIView):
 		
 class GenerateView(views.APIView):
 
+	email = 'richard.github@gmail.com'
+	test_email = 'richard.github@gmail.com'
+
 	def post(self, request):
 		user = request.user
 		user_profile = UserProfile.objects.get(user=user)
-		if user_profile.public_key == b'':
+		if user_profile.public_key != b'':
 			key = RSA.generate(2048)
 			user_profile.public_key = key.publickey().exportKey('PEM')
 			user_profile.save()
 			temp = tempfile.NamedTemporaryFile(delete=True)
 			try:
+				print("trying")
+				email = EmailMessage(
+					subject="<IMPORTANT> Secureshare Private Key",
+					body="Dear " + request.user.username + ",\n Attached is your private key. Store this in a safe place and do not delete it.",
+					to=[self.email,]
+					)
 				temp.write(key.exportKey('PEM'))
+				print("wrote key")
 				temp.seek(0)
 				file_name = user.username + '_private_key.pem'
-				response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
-				response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
+				print('attaching')
+				email.attach(file_name, temp.read(), 'application/pdf')
+				print('done attaching')
+				#response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
+				#response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
 			finally:
+				print("closing")
+				print('sending')
+				res = email.send(fail_silently=False)
+				print('done sending')
 				temp.close()
-				return response
+
+				return Response(res, status=status.HTTP_200_OK)
 		else:
 			return Response(
 				{"Error":"Key already generated, submit PATCH request"}, 

@@ -8,3 +8,4 @@ class Message(models.Model):
 	recipient = models.ForeignKey(User, related_name='message_target')
 	subject = models.CharField(max_length=100)
 	body = models.TextField()
+	encrypted = models.BooleanField()

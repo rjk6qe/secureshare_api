@@ -28,6 +28,15 @@ DEBUG = True
 
 # Application definition
 
+DEFAULT_FROM_EMAIL = 'richard.github@gmail.com'
+SERVER_EMAIL = 'richard.github@gmail.com'
+EMAIL_USE_TLS = True
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'richard.github@gmail.com'
+EMAIL_HOST_PASSWORD = 'githubpassword'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
 INSTALLED_APPS = (
     'django.contrib.admin',
     'django.contrib.auth',

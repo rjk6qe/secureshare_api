@@ -1,12 +1,19 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
 from django.db.models import Q
+from django.core.exceptions import ObjectDoesNotExist
 
-from rest_framework import permissions, viewsets, status
+from rest_framework import permissions, viewsets, status, views
 from rest_framework.response import Response
 
+from rest_framework.authtoken.models import Token
+
+from authentication.models import UserProfile
 from secureshare_messages.models import Message
 from secureshare_messages.serializers import MessageSerializer
+
+import requests
+
 
 class MessageViewSet(viewsets.ModelViewSet):
 	
@@ -17,4 +24,90 @@ class MessageViewSet(viewsets.ModelViewSet):
 		queryset = Message.objects.filter(Q(sender = user) | Q(recipient = user))
 		return queryset
 
-# Create your views here.
+class MessageInboxView(views.APIView):
+
+	serializer_class = MessageSerializer
+
+	inbox_error = Response(
+		{"Error":"Given key is not in user's inbox"},
+		status = status.HTTP_400_BAD_REQUEST
+		)
+
+	def get(self, request, pk=None):
+		if 'pk' in self.kwargs:
+			pk = self.kwargs['pk']
+			try:
+				message = Message.objects.get(pk=pk)
+				serializer = self.serializer_class(message)
+				if serializer.is_valid():
+					if message.recipient == request.user:
+						return Response(
+							serializer.data, 
+							status = status.HTTP_200_OK
+							)
+				return self.inbox_error
+			except ObjectDoesNotExist:
+				return self.inbox_error
+		else:
+			queryset = Message.objects.filter(recipient=request.user)
+			serializer = self.serializer_class(queryset, many=True)
+			return Response(serializer.data,status=status.HTTP_200_OK)
+			
+class MessageSendView(views.APIView):
+
+	serializer_class = MessageSerializer
+	
+	def post(self, request):
+		serializer = self.serializer_class(data=request.data)
+		if serializer.is_valid():
+			recipient = request.data.get('recipient',None)
+			try:
+				recipient_user = User.objects.get(username=recipient)
+				user_profile = UserProfile.objects.get(user=recipient_user)
+				serializer.save(sender=request.user, recipient=recipient_user)
+				return Response(
+					{"Message":"Message sent"},
+					status=status.HTTP_200_OK
+					)
+			except ObjectDoesNotExist:
+				return Response(
+					{"Error":"Recipient does not exist"},
+					status = status.HTTP_400_BAD_REQUEST,
+					)
+		else:
+			return Response(
+				serializer.errors,
+				status = status.HTTP_400_BAD_REQUEST
+				)
+
+class MessageOutboxView(views.APIView):
+	serializer_class = MessageSerializer
+	def get(self, request):
+		queryset = Message.objects.filter(sender=request.user)
+		serializer = self.serializer_class(queryset, many=True)
+		return Response(
+			serializer.data,
+			status=status.HTTP_200_OK
+			)
+
+class MessageDecryptView(views.APIView):
+
+	def post(self, request, pk=None):
+		if 'pk' not in self.kwargs:
+			return Response(
+				{"Message":"Must specify which message to decrypt"},
+				status=status.HTTP_400_BAD_REQUEST
+				)
+		pk = self.kwargs['pk']
+		try:
+			msg = Message.objects.get(pk=pk)
+			if not msg.recipient == request.user:
+				raise ObjectDoesNotExist
+			# file = request.FILES.get('private_key')
+			# print(file.content)
+			return Response(status = status.HTTP_200_OK)
+		except ObjectDoesNotExist:
+			return Response(
+				{"Message":"Either invalid key or user cannot decrypt this message"},
+				status = status.HTTP_400_BAD_REQUEST
+				)
