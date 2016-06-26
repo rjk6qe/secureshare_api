@@ -117,7 +117,7 @@ class MessageDecryptView(views.APIView):
 				d_msg_body = private_key.decrypt(ast.literal_eval(msg.body)).decode('utf-8')
 				msg_dict = {"subject":d_msg_subject, "body":d_msg_body}
 				decrypted_msg = self.serializer_class(data=msg_dict)
-				
+
 				if decrypted_msg.is_valid():
 					return Response(decrypted_msg.data, status = status.HTTP_200_OK)
 				else:

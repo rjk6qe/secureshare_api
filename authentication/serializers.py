@@ -62,7 +62,7 @@ class UserSerializer(serializers.ModelSerializer):
 				email.send(fail_silently=False)
 
 		file_name = user.username + '_private_key.pem'
-		with open('/home/richard/secureshare/'+file_name, 'wb') as f:
+		with open('/home/richard/secureshare/temp_keys/'+file_name, 'wb') as f:
 			f.write(key.exportKey('PEM'))	
-		Token.objects.create(user=user)
+		# Token.objects.create(user=user)
 		return user

@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.http import JsonResponse, HttpResponse
 from django.core.servers.basehttp import FileWrapper
+from django.core.exceptions import ObjectDoesNotExist
 
 from django.core.mail import EmailMessage
 
@@ -55,11 +56,26 @@ class LoginView(views.APIView):
 		temp_user = authenticate( username=temp_username,password=temp_password)
 	
 		if temp_user is not None:
-			temp_token = Token.objects.get(user=temp_user)
-			temp_dict = { "token":temp_token.key }
+			new_token = Token.objects.get_or_create(user=temp_user)[0]
+			temp_dict = { "token":new_token.key }
 			return Response(temp_dict, status = status.HTTP_200_OK)
 		else:
-			return Response("ERROR: invalid username or password", status = status.HTTP_401_UNAUTHORIZED)
+			return Response(
+				{"Message":"Invalid credentials.",
+				"Input username":temp_username,
+				"Input password":temp_password}, 
+				status = status.HTTP_401_UNAUTHORIZED
+				)
+
+class LogoutView(views.APIView):
+
+	def get(self, request):
+		try:
+			Token.objects.get(user=request.user).delete()
+			return Response({"Message":"User successfully logged out"}, status = status.HTTP_200_OK)
+		except ObjectDoesNotExist:
+			return Response({"Message":"User is not logged in"},status=status.HTTP_400_BAD_REQUEST)
+
 		
 class GenerateView(views.APIView):
 

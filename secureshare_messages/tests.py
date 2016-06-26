@@ -21,6 +21,8 @@ class MessageTests(APITestCase):
 
 	user_data = {"username":list_of_users[0],"password":list_of_passwords[0],"email":"fake@fake.com","testing":'True'}
 
+	test_keys_base = '/home/richard/secureshare/test_keys/'
+
 	message_unencrypted_data = {
 	"recipient" : "user2",
 	"subject":"test message",
@@ -176,10 +178,10 @@ class MessageTests(APITestCase):
 		msg_pk = msg_data['pk']
 
 		user_one = Token.objects.get(key=token_list[0]).user
-		user_one_private_key = open('/home/richard/secureshare/' + user_one.username + '_private_key.pem')
+		user_one_private_key = open(self.test_keys_base + user_one.username + '_private_key.pem')
 
 		user_two = Token.objects.get(key=token_list[1]).user
-		user_two_private_key = open('/home/richard/secureshare/' + user_two.username + '_private_key.pem')
+		user_two_private_key = open(self.test_keys_base + user_two.username + '_private_key.pem')
 
 
 		response = self.client.post(self.message_decrypt_url + str(msg_pk) + '/', {"private_key":user_two_private_key}, format='multipart')

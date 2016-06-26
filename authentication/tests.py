@@ -14,6 +14,7 @@ from report.serializers import ReportSerializer
 from Crypto.PublicKey import RSA
 from base64 import b64decode
 import random
+import os
 
 class UserTests(APITestCase):
 
@@ -28,6 +29,9 @@ class UserTests(APITestCase):
 
 	register_url = '/api/v1/users/register/'
 	login_url = '/api/v1/users/login/'
+	logout_url = '/api/v1/users/logout/'
+	report_list_url = '/api/v1/reports/'
+
 	generate_url = '/api/v1/encrypt/generate/'
 
 	serializer_class = ReportSerializer
@@ -63,6 +67,7 @@ class UserTests(APITestCase):
 					)
 			except ObjectDoesNotExist:
 				self.fail("UserProfile objects not created")
+
 			token_list.append(response.data['token'])
 			self.user_data['email'] = 'fake@fake.com'
 		return token_list
@@ -89,16 +94,13 @@ class UserTests(APITestCase):
 				self.list_of_users[i],
 				msg="Incorrect username"
 				)
-			
+
 	def test_login_user(self):
 		data = {'username' : self.username, 'password' : self.password}
 
 		register_response = self.client.post(self.register_url, data, format='json')
 		
 		user = User.objects.get(username = self.username)
-		token = Token.objects.get(user=user)
-
-		expected_response = {'token': token.key}
 
 		response = self.client.post(self.login_url, data, format='json')
 
@@ -107,10 +109,83 @@ class UserTests(APITestCase):
 			status.HTTP_200_OK,
 			msg="Incorrect status code"
 			)
+		try:
+			self.assertEqual(
+				Token.objects.get(user=user).key,
+				response.data['token'],
+				msg="Incorrect token returned"
+				)
+		except ObjectDoesNotExist:
+			self.fail(msg="Token does not exist")
+
+
+
+	def test_logout_user(self):
+		data = {'username' : self.username, 'password' : self.password}
+
+		self.client.post(self.register_url, data, format='json')
+		response = self.client.post(self.login_url, data, format='json')
+
+		first_token = response.data['token']
+
+		user = Token.objects.get(key=first_token).user
+
+		self.client.credentials(HTTP_AUTHORIZATION= 'Token ' + str(first_token))
+		response = self.client.get(self.report_list_url)
+
 		self.assertEqual(
-			response.data,
-			expected_response,
-			msg="Incorrect token"
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="First token did not work"
+			)
+
+		response = self.client.post(self.login_url, data, format='json')
+
+		second_token = response.data['token']
+
+		self.assertEqual(
+			first_token,
+			second_token,
+			msg="New token created for multiple logins"
+			)
+
+		response = self.client.get(self.logout_url)
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Logout failed for logged in user"
+			)
+
+		self.assertEqual(
+			Token.objects.filter(user=user).count(),
+			0,
+			msg="Token still exists for given user"
+			)
+
+		response = self.client.get(self.report_list_url)
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_401_UNAUTHORIZED,
+			msg="Old token still allowed access"
+			)
+
+		self.client.credentials()
+		response = self.client.post(self.login_url, data, format='json')
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Could not log in with logged out user" + str(response.data)
+			)
+
+		third_token = response.data['token']
+
+		self.assertNotEqual(
+			third_token,
+			first_token,
+			msg="New token was not created on login"
 			)
 
 	# def test_generate_post_key(self):

@@ -8,7 +8,7 @@ from rest_framework.authtoken import views
 
 from report.views import ReportView
 from secureshare_messages.views import MessageInboxView, MessageSendView, MessageOutboxView, MessageDecryptView
-from authentication.views import RegisterView, LoginView, GenerateView
+from authentication.views import RegisterView, LoginView, GenerateView, LogoutView
 
 router = routers.SimpleRouter()
 #router.register(r'reports',ReportViewSet, base_name='Report')
@@ -23,6 +23,8 @@ urlpatterns = [
 
     url(r'^api/v1/users/register/',RegisterView.as_view()),
     url(r'^api/v1/users/login/',LoginView.as_view()),
+    url(r'^api/v1/users/logout/',LogoutView.as_view()),
+
 #    url(r'^api/v1/encrypt/generate/', GenerateView.as_view()),
 
     url(r'^api/v1/reports/$',ReportView.as_view()),
@@ -33,6 +35,7 @@ urlpatterns = [
     url(r'^api/v1/messages/outbox/',MessageOutboxView.as_view()),
     url(r'^api/v1/messages/send/',MessageSendView.as_view()),
     url(r'^api/v1/messages/decrypt/(?P<pk>[0-9]+)/$', MessageDecryptView.as_view()),
+
 
 #    url(r'^api-token/',views.obtain_auth_token), # This view doesn't do anything, it just queries the database and returns the Token where user = authenticate
 
