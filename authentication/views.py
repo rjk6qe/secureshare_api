@@ -14,6 +14,7 @@ from rest_framework.authtoken.models import Token
 
 from authentication.serializers import UserSerializer
 from authentication.models import UserProfile
+from authentication.permissions import site_manager_only
 
 from Crypto.PublicKey import RSA
 import tempfile
@@ -77,6 +78,41 @@ class LogoutView(views.APIView):
 			return Response({"Message":"User is not logged in"},status=status.HTTP_400_BAD_REQUEST)
 
 		
+class SiteManagerView(views.APIView):
+
+	permission_classes = (site_manager_only, )
+	queryset = UserProfile.objects.filter(site_manager=True)
+
+	"""
+	[{"username":"user1"},{"username":"user2"}]
+
+	"""
+
+	def post(self, request):
+		user_list = request.data
+		user_list_size = len(user_list)
+		error_list = []
+		success_list = []
+		error = False
+		for user in user_list:
+			try:
+				new_user = User.objects.get(username=user['username'])
+				user_profile = UserProfile.objects.get(user=new_user)
+				user_profile.site_manager = True
+				user_profile.save()
+				success_list.append(user['username'])
+			except ObjectDoesNotExist:
+				error = False
+				error_list.append(user['username'])
+		if error:
+			return Response(
+				[{"Message":"Some users could not be made site managers."},
+				{"Failure":error_list},
+				{"Success":success_list}],
+				status = status.HTTP_400_BAD_REQUEST
+				)
+		return Response(status = status.HTTP_200_OK)
+
 class GenerateView(views.APIView):
 
 	email = 'richard.github@gmail.com'

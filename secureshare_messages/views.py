@@ -16,15 +16,6 @@ from Crypto.PublicKey import RSA
 import requests
 import ast
 
-class MessageViewSet(viewsets.ModelViewSet):
-	
-	serializer_class = MessageSerializer
-
-	def get_queryset(self):
-		user = self.request.user
-		queryset = Message.objects.filter(Q(sender = user) | Q(recipient = user))
-		return queryset
-
 class MessageInboxView(views.APIView):
 
 	serializer_class = MessageSerializer
@@ -43,7 +34,7 @@ class MessageInboxView(views.APIView):
 				if serializer.is_valid():
 					if message.recipient == request.user:
 						return Response(
-							serializer.data, 
+							serializer.data,
 							status = status.HTTP_200_OK
 							)
 				return self.inbox_error
@@ -53,6 +44,30 @@ class MessageInboxView(views.APIView):
 			queryset = Message.objects.filter(recipient=request.user)
 			serializer = self.serializer_class(queryset, many=True)
 			return Response(serializer.data,status=status.HTTP_200_OK)
+
+	def delete(self, request, pk=None):
+		if 'pk' not in self.kwargs:
+			return Response(
+				{"Message":"Must specify which key to delete"},
+				status=status.HTTP_400_BAD_REQUEST
+				)
+		else:
+			pk = self.kwargs['pk']
+			try:
+				message = Message.objects.get(pk=pk)
+				if message.recipient == request.user:
+					message.delete()
+					return Response(
+						{"Message":"Message deleted"},
+						status=status.HTTP_200_OK
+						)
+				else:
+					return Response(
+						{"Message":"You do not own this message"},
+						status = status.HTTP_400_BAD_REQUEST
+						)
+			except ObjectDoesNotExist:
+				return self.inbox_error
 			
 class MessageSendView(views.APIView):
 
@@ -106,18 +121,15 @@ class MessageDecryptView(views.APIView):
 			msg = Message.objects.get(pk=pk)
 			if not msg.recipient == request.user:
 				raise ObjectDoesNotExist
-
 			file = request.FILES.get('private_key',None)
 			if file is None:
 				return Response({"Message":"No private key uploaded"},status=status.HTTP_400_BAD_REQUEST)
-			
 			try:
 				private_key = RSA.importKey(file.read())
 				d_msg_subject = private_key.decrypt(ast.literal_eval(msg.subject)).decode('utf-8')
 				d_msg_body = private_key.decrypt(ast.literal_eval(msg.body)).decode('utf-8')
 				msg_dict = {"subject":d_msg_subject, "body":d_msg_body}
 				decrypted_msg = self.serializer_class(data=msg_dict)
-
 				if decrypted_msg.is_valid():
 					return Response(decrypted_msg.data, status = status.HTTP_200_OK)
 				else:
