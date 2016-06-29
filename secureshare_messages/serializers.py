@@ -12,7 +12,7 @@ from Crypto.PublicKey import RSA
 class MessageSerializer(serializers.ModelSerializer):
 
 	sender = UserSerializer(read_only=True)
-	recipient = UserSerializer(read_only=True)
+	recipient = serializers.CharField(max_length=30)
 
 	class Meta:
 		model = Message
@@ -21,10 +21,21 @@ class MessageSerializer(serializers.ModelSerializer):
 	def validate(self, data):
 		subject = data.get('subject', None)
 		body = data.get('body',None)
-		if subject and body:
+		recipient = data.get('recipient',None)
+
+
+		if not (subject and body and recipient):
+			raise serializers.ValidationError(
+				{"Error":"Missing required fields"}
+				)
+		try:
+			recipient = User.objects.get(username=recipient)
+			data['recipient'] = recipient
 			return data
-		else:
-			raise serializers.ValidationError({"Error":"Missing fields"})
+		except ObjectDoesNotExist:
+			raise serializers.ValidationError(
+				{"Error":"Recipient does not exist"}
+				)
 
 	def create(self, validated_data):
 		sender = validated_data.get('sender',None)
@@ -46,5 +57,5 @@ class MessageSerializer(serializers.ModelSerializer):
 			body = body,
 			encrypted = encrypted 
 			)
-		m.save()
+
 		return m

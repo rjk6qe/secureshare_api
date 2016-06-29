@@ -21,7 +21,7 @@ class MessageTests(APITestCase):
 
 	user_data = {"username":list_of_users[0],"password":list_of_passwords[0],"email":"fake@fake.com","testing":'True'}
 
-	test_keys_base = '/home/richard/secureshare/test_keys/'
+	test_keys_base = '/home/richard/secureshare/temp_keys/'
 
 	message_unencrypted_data = {
 	"recipient" : "user2",
@@ -82,7 +82,7 @@ class MessageTests(APITestCase):
 		user_two_token = token_list[1]
 		
 		self.client.credentials(HTTP_AUTHORIZATION='Token ' + user_one_token)
-		response = self.client.post(self.message_send_url, data=self.message_unencrypted_data, format='json')
+		response = self.client.post(self.message_send_url, self.message_unencrypted_data, format='json')
 
 		self.assertEqual(
 			response.status_code,
