@@ -138,6 +138,3 @@ class FolderSerializer(serializers.ModelSerializer):
 		folder.save()
 
 		return folder
-
-		
-		

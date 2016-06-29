@@ -6,7 +6,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import permissions, viewsets, status, views
 from rest_framework.response import Response
 
-from report.serializers import ReportSerializer#, MessageSerializer
+from report.serializers import ReportSerializer, FolderSerializer
 from report.models import Report, Document#, Message
 from authentication.models import UserProfile
 
@@ -169,6 +169,19 @@ class ReportView(views.APIView):
 			return Response(
 				{"Error":"This report does not exist."},
 				status = status.HTTP_400_BAD_REQUEST
+				)
+
+def FolderView(views.APIView):
+
+	serializer_class = FolderSerializer
+
+	def post(self, request):
+		serializer = self.serializer_class(data=request.data)
+		if serializer.is_valid():
+			serializer.save(owner=request.user)
+			return Response(
+				{"Message":"Folder successfully created"},
+				status = status.HTTP_201_CREATED
 				)
 
 
