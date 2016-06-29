@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate
 from django.http import JsonResponse, HttpResponse
 from django.core.servers.basehttp import FileWrapper
@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework import authentication, permissions
 from rest_framework.authtoken.models import Token
 
-from authentication.serializers import UserSerializer
+from authentication.serializers import UserSerializer, UserProfileSerializer, GroupSerializer
 from authentication.models import UserProfile
 from authentication.permissions import site_manager_only
 
@@ -22,7 +22,7 @@ import tempfile
 class RegisterView(views.APIView):
 	permission_classes = (permissions.AllowAny, )
 	serializer_class = UserSerializer
-
+	profile_class = UserProfileSerializer
 	def post(self, request):
 		"""
 		View takes in username and password to create a user object
@@ -30,8 +30,13 @@ class RegisterView(views.APIView):
 		"""
 		serializer = self.serializer_class(data = request.data)
 		if serializer.is_valid():
-			serializer.save()
-			return Response(status = status.HTTP_201_CREATED)
+			user = serializer.save()
+			serializer = self.profile_class(data={})
+			if serializer.is_valid():
+				serializer.save(user=user)
+				return Response(serializer.data, status = status.HTTP_201_CREATED)
+			else:
+				return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
 		else:
 			return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
 
@@ -90,6 +95,35 @@ class SiteManagerView(views.APIView):
 
 	def post(self, request):
 		user_list = request.data
+		error_list = []
+		success_list = []
+		error = False
+		for user in user_list:
+			try:
+				new_user = User.objects.get(username=user['username'])
+				new_user.is_active = not new_user.is_active
+				new_user.save()
+				success_list.append(new_user.username)
+			except ObjectDoesNotExist:
+				error = True
+				error_list.append(user['username'])
+
+		if error:
+			return Response(
+				{"Message":"Some users could not have their status changed"},
+				{"Success":success_list},
+				{"Failed":error_list},
+				status = status.HTTP_400_BAD_REQUEST
+				)
+		else:
+			return Response(
+				{"Message":"All users changed successfully"},
+				{"Success":success_list},
+				status = status.HTTP_200_OK
+				)
+
+	def patch(self, request):
+		user_list = request.data
 		user_list_size = len(user_list)
 		error_list = []
 		success_list = []
@@ -102,82 +136,141 @@ class SiteManagerView(views.APIView):
 				user_profile.save()
 				success_list.append(user['username'])
 			except ObjectDoesNotExist:
-				error = False
+				error = True
 				error_list.append(user['username'])
 		if error:
 			return Response(
-				[{"Message":"Some users could not be made site managers."},
+				[{"Message":"Some listed users could not be made site managers."},
 				{"Failure":error_list},
 				{"Success":success_list}],
 				status = status.HTTP_400_BAD_REQUEST
 				)
-		return Response(status = status.HTTP_200_OK)
+		return Response(
+			[{"Message":"All users succesfully made site managers"},
+			{"Success":success_list}],
+			status = status.HTTP_200_OK)
 
-class GenerateView(views.APIView):
 
-	email = 'richard.github@gmail.com'
-	test_email = 'richard.github@gmail.com'
+class GroupView(views.APIView):
+
+	serializer_class = GroupSerializer
 
 	def post(self, request):
-		user = request.user
-		user_profile = UserProfile.objects.get(user=user)
-		if user_profile.public_key != b'':
-			key = RSA.generate(2048)
-			user_profile.public_key = key.publickey().exportKey('PEM')
-			user_profile.save()
-			temp = tempfile.NamedTemporaryFile(delete=True)
-			try:
-				print("trying")
-				email = EmailMessage(
-					subject="<IMPORTANT> Secureshare Private Key",
-					body="Dear " + request.user.username + ",\n Attached is your private key. Store this in a safe place and do not delete it.",
-					to=[self.email,]
-					)
-				temp.write(key.exportKey('PEM'))
-				print("wrote key")
-				temp.seek(0)
-				file_name = user.username + '_private_key.pem'
-				print('attaching')
-				email.attach(file_name, temp.read(), 'application/pdf')
-				print('done attaching')
-				#response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
-				#response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
-			finally:
-				print("closing")
-				print('sending')
-				res = email.send(fail_silently=False)
-				print('done sending')
-				temp.close()
-
-				return Response(res, status=status.HTTP_200_OK)
+		serializer = self.serializer_class(data=request.data)
+		if serializer.is_valid():
+			serializer.save(owner=request.user)
+			return Response(
+				{"Message":"Group successfully created"},
+				status = status.HTTP_201_CREATED
+				)
 		else:
 			return Response(
-				{"Error":"Key already generated, submit PATCH request"}, 
+				[{"Message":"Group could not be created"},
+				{"Errors":serializer.errors}],
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
-	def patch(self, request,pk=None):
-		user = request.user
-		user_profile = UserProfile.objects.get(user=user)
-		if user_profile.public_key == b'':
+	def patch(self, request):
+		group_name = request.data.get('group_name',None)
+		delete_groups = request.data.get('delete',False)
+
+		if group_name is None:
 			return Response(
-				{"Error":"Submit POST to generate key"},
-				status=status.HTTP_400_BAD_REQUEST
+				{"Message":"No group name specified"},
+				status = status.HTTP_400_BAD_REQUEST
 				)
-		else:
-			key = RSA.generate(2048)
-			user_profile.public_key = key.publickey().exportKey('PEM')
-			user_profile.save()
-			temp = tempfile.NamedTemporaryFile(delete=True)
-			try:
-				temp.write(key.exportKey('PEM'))
-				temp.seek(0)
-				file_name = user.username + '_private_key.pem'
-				response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
-				response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
-			finally:
-				temp.close()
-				return response
+		try:
+			group = Group.objects.get(name=group_name)
+			if group not in request.user.groups.all():
+				return Response(
+					{"Message":"User can only modify a group they are a member of"},
+					status = status.HTTP_400_BAD_REQUEST
+					)
+			serializer = self.serializer_class(group, data=request.data)
+			if serializer.is_valid():
+				serializer.save(delete=delete_groups)
+				return Response(
+					{"Message":"Group members deleted"},
+					status=status.HTTP_200_OK
+					)
+			else:
+				return Response(
+					{"Message":"Something went wrong"},
+					status = status.HTTP_400_BAD_REQUEST
+					)
+		except ObjectDoesNotExist:
+			return Response(
+				{"Message":"Not a valid group name"},
+				status = status.HTTP_400_BAD_REQUEST
+				)
+
+
+
+# class GenerateView(views.APIView):
+
+# 	email = 'richard.github@gmail.com'
+# 	test_email = 'richard.github@gmail.com'
+
+# 	def post(self, request):
+# 		user = request.user
+# 		user_profile = UserProfile.objects.get(user=user)
+# 		if user_profile.public_key != b'':
+# 			key = RSA.generate(2048)
+# 			user_profile.public_key = key.publickey().exportKey('PEM')
+# 			user_profile.save()
+# 			temp = tempfile.NamedTemporaryFile(delete=True)
+# 			try:
+# 				print("trying")
+# 				email = EmailMessage(
+# 					subject="<IMPORTANT> Secureshare Private Key",
+# 					body="Dear " + request.user.username + ",\n Attached is your private key. Store this in a safe place and do not delete it.",
+# 					to=[self.email,]
+# 					)
+# 				temp.write(key.exportKey('PEM'))
+# 				print("wrote key")
+# 				temp.seek(0)
+# 				file_name = user.username + '_private_key.pem'
+# 				print('attaching')
+# 				email.attach(file_name, temp.read(), 'application/pdf')
+# 				print('done attaching')
+# 				#response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
+# 				#response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
+# 			finally:
+# 				print("closing")
+# 				print('sending')
+# 				res = email.send(fail_silently=False)
+# 				print('done sending')
+# 				temp.close()
+
+# 				return Response(res, status=status.HTTP_200_OK)
+# 		else:
+# 			return Response(
+# 				{"Error":"Key already generated, submit PATCH request"}, 
+# 				status = status.HTTP_400_BAD_REQUEST
+# 				)
+
+# 	def patch(self, request,pk=None):
+# 		user = request.user
+# 		user_profile = UserProfile.objects.get(user=user)
+# 		if user_profile.public_key == b'':
+# 			return Response(
+# 				{"Error":"Submit POST to generate key"},
+# 				status=status.HTTP_400_BAD_REQUEST
+# 				)
+# 		else:
+# 			key = RSA.generate(2048)
+# 			user_profile.public_key = key.publickey().exportKey('PEM')
+# 			user_profile.save()
+# 			temp = tempfile.NamedTemporaryFile(delete=True)
+# 			try:
+# 				temp.write(key.exportKey('PEM'))
+# 				temp.seek(0)
+# 				file_name = user.username + '_private_key.pem'
+# 				response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
+# 				response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
+# 			finally:
+# 				temp.close()
+# 				return response
 
 # class UserViewSet(viewsets.ModelViewSet):
 # 	serializer_class = UserSerializer

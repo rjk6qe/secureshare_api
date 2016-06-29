@@ -1,4 +1,4 @@
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.core.exceptions import ObjectDoesNotExist
 
 from rest_framework import serializers
@@ -7,6 +7,7 @@ from rest_framework.authtoken.models import Token
 from authentication.models import UserProfile
 
 from Crypto.PublicKey import RSA
+
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -29,7 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
 				raise serializers.ValidationError("ERROR: User with this email already exists")
 			except ObjectDoesNotExist:
 				return data
-		else:		
+		else:
 			raise serializers.ValidationError({"Message":"Missing required fields."})
 
 
@@ -41,6 +42,20 @@ class UserSerializer(serializers.ModelSerializer):
 		user = User.objects.create(username=new_username)
 		user.set_password(new_password)
 		user.save()
+		return user
+
+class UserProfileSerializer(serializers.ModelSerializer):
+
+	user = UserSerializer(read_only=True)
+	testing = True
+
+	class Meta:
+		model = UserProfile
+		fields = ('user','site_manager')
+		extra_kwargs = {'site_manager':{'read_only':True}}
+
+	def create(self, validated_data):
+		user = validated_data.get('user')
 		user_profile = UserProfile.objects.create(user=user)
 		user_profile.save()
 
@@ -60,9 +75,57 @@ class UserSerializer(serializers.ModelSerializer):
 				email.attach(file_name, key.exportKey('PEM'), 'application/pdf')
 			finally:
 				email.send(fail_silently=False)
-
 		file_name = user.username + '_private_key.pem'
 		with open('/home/richard/secureshare/temp_keys/'+file_name, 'wb') as f:
-			f.write(key.exportKey('PEM'))	
-		# Token.objects.create(user=user)
-		return user
+			f.write(key.exportKey('PEM'))
+
+		return user_profile
+
+
+class GroupSerializer(serializers.Serializer):
+
+	group_name = serializers.CharField(max_length=80)
+	users = serializers.ListField(
+		child=serializers.CharField(max_length=30)
+		)
+
+	def validate(self, data):
+		user_list = data.get('users')
+
+		for username in user_list:
+			try:
+				user = User.objects.get(username=username)
+			except ObjectDoesNotExist:
+				raise serializers.ValidationError({"Error":"At least one user does not exist"})
+		return data
+
+	def create(self, validated_data):
+		owner = validated_data.get('owner')
+		new_group = Group.objects.create(name=validated_data.get('group_name'))
+		new_group.save()
+
+		owner.groups.add(new_group)
+		user_list = validated_data.get('users')
+
+		for username in user_list:
+			user = User.objects.get(username=username)
+			user.groups.add(new_group)
+
+		return new_group
+
+	def update(self, instance, validated_data):
+		delete = validated_data.get('delete',False) #default to adding users to groups
+
+		user_list = validated_data.get('users')
+
+		for username in user_list:
+			user = User.objects.get(username=username)
+			if not delete:
+				if instance not in user.groups.all():
+					user.groups.add(instance)
+			else:
+				if instance in user.groups.all():
+					user.groups.remove(instance)
+			user.save()
+
+		return instance

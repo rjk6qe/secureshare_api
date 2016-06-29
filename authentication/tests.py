@@ -1,12 +1,12 @@
 from django.test import Client
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse
+from django.contrib.auth.models import User, Group
 
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
 
-from django.contrib.auth.models import User
 from authentication.models import UserProfile
 from report.models import Report, Document
 from report.serializers import ReportSerializer
@@ -21,8 +21,8 @@ class UserTests(APITestCase):
 	username = 'test_user'
 	password = 'test_password'
 
-	list_of_users = ['user1','user2','user3','user4','user5']
-	list_of_passwords = ['password1','password2', 'password3', 'password4', 'password5']
+	list_of_users = ['user1','user2']
+	list_of_passwords = ['password1','password2']
 	email = 'richard.github@gmail.com'
 
 	user_data = {"username":list_of_users[0],"password":list_of_passwords[0],"email":"fake@fake.com","testing":'True'}
@@ -31,7 +31,7 @@ class UserTests(APITestCase):
 	login_url = '/api/v1/users/login/'
 	logout_url = '/api/v1/users/logout/'
 	report_list_url = '/api/v1/reports/'
-
+	group_url = '/api/v1/users/groups/'
 	generate_url = '/api/v1/encrypt/generate/'
 
 	serializer_class = ReportSerializer
@@ -187,6 +187,76 @@ class UserTests(APITestCase):
 			first_token,
 			msg="New token was not created on login"
 			)
+
+
+	def test_groups(self):
+		token_list = self.generate_users_receive_tokens()
+		user_one_token = token_list[0]
+
+		user_two_token = token_list[1]
+		user_two_username = self.list_of_users[1]
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
+		group_data = {}
+		group_data["group_name"]= "group_one" 
+		group_data["users"] = [user_two_username,]
+
+		response = self.client.post(self.group_url, group_data, format='json')
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_201_CREATED,
+			msg="Incorrect response code for group creation" + str(response.data)
+			)
+		self.assertEqual(
+			Group.objects.count(),
+			1,
+			msg="Group not created"
+			)
+		group = Group.objects.get()
+		self.assertEqual(
+			group in Token.objects.get(key=user_one_token).user.groups.all(),
+			True,
+			msg="Group not in creator's groups"
+			)
+		self.assertEqual(
+			group in Token.objects.get(key=user_two_token).user.groups.all(),
+			True,
+			msg="Group not in listed users' groups"
+			)
+
+		group_data['delete'] = True
+		response = self.client.patch(self.group_url, group_data, format='json')
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Incorrect response code for group modification" + str(response.data)
+			)
+		self.assertEqual(
+			group in Token.objects.get(key=user_one_token).user.groups.all(),
+			True,
+			msg="Group modification deleted wrong user"
+			)
+		self.assertEqual(
+			group in Token.objects.get(key=user_two_token).user.groups.all(),
+			False,
+			msg="Group modification did not delete user"
+			)		
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
+		group_data['delete'] = False
+		response = self.client.patch(self.group_url, group_data, format='json')
+
+		self.assertEqual(
+			status.HTTP_400_BAD_REQUEST,
+			response.status_code,
+			msg="Outside user was able to add self to group"
+			)
+
+
+
+
+
 
 	# def test_generate_post_key(self):
 	# 	token_list = self.generate_users_receive_tokens()
