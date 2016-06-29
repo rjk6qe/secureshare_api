@@ -14,7 +14,7 @@ class Report(models.Model):
 	owner = models.ForeignKey(User)
 	private = models.BooleanField(default=False)
 
-class Folders(models.Model):
+class Folder(models.Model):
 	owner = models.ForeignKey(User)
 	groups = models.ManyToManyField(Group)
 	reports = models.ManyToManyField(Report)

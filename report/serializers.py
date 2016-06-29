@@ -1,5 +1,5 @@
 from django.contrib.auth import update_session_auth_hash
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.core.exceptions import ObjectDoesNotExist
 
 from rest_framework import serializers
@@ -81,37 +81,36 @@ class ReportSerializer(serializers.ModelSerializer):
 
 class FolderSerializer(serializers.ModelSerializer):
 
-	reports = serializers.ListView(
+	reports = serializers.ListField(
 		child = serializers.CharField(max_length=50)
 		)
-	groups = serializers.ListView(
+	groups = serializers.ListField(
 		child = serializers.CharField(max_length=80)
 		)
-
 
 	class Meta:
 		model = Folder
 		fields = ['name','reports','groups']
 
 	def validate(self, data):
-		report_list = validated_data.get('reports')
-		group_list = validated_data.get('groups')
+		report_list = data.get('reports')
+		group_list = data.get('groups')
 		new_report_list = []
 		new_group_list = []
 
-		r = Report.objects.get()
+		r = Report()
 		for report in report_list:
 			try:
-				new_report_list.add(Report.objects.get(name=report))
+				new_report_list.append(Report.objects.get(name=report))
 			except ObjectDoesNotExist:
 				raise serializers.ValidationError({"Error":"At least one report name was invalid"})
 		
 		data['reports'] = new_report_list
 
-		g = Group.objects.get()
+		g = Group()
 		for group in group_list:
 			try:
-				new_group_list(Group.objects.get(name=group))
+				new_group_list.append(Group.objects.get(name=group))
 			except ObjectDoesNotExist:
 				raise serializers.ValidationError({"Error":"At least one group name was invalid"})
 

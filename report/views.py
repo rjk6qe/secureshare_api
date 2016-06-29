@@ -7,7 +7,7 @@ from rest_framework import permissions, viewsets, status, views
 from rest_framework.response import Response
 
 from report.serializers import ReportSerializer, FolderSerializer
-from report.models import Report, Document#, Message
+from report.models import Report, Document, Folder
 from authentication.models import UserProfile
 
 class ReportView(views.APIView):
@@ -171,7 +171,7 @@ class ReportView(views.APIView):
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
-def FolderView(views.APIView):
+class FolderView(views.APIView):
 
 	serializer_class = FolderSerializer
 
@@ -183,6 +183,8 @@ def FolderView(views.APIView):
 				{"Message":"Folder successfully created"},
 				status = status.HTTP_201_CREATED
 				)
+		else:
+			return Response(serializer.errors)
 
 
 # Create your views here.
