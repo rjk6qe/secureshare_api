@@ -4,7 +4,6 @@ from django.contrib.auth import authenticate
 from django.http import JsonResponse, HttpResponse
 from django.core.servers.basehttp import FileWrapper
 from django.core.exceptions import ObjectDoesNotExist
-
 from django.core.mail import EmailMessage
 
 from rest_framework import views, status

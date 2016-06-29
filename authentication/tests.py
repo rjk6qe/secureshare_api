@@ -253,8 +253,9 @@ class UserTests(APITestCase):
 			msg="Outside user was able to add self to group"
 			)
 
-
-
+		"""
+		Insert test code for site manager modifiying groups
+		"""
 
 
 

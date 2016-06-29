@@ -6,7 +6,7 @@ from django.contrib import admin
 from rest_framework import routers
 from rest_framework.authtoken import views
 
-from report.views import ReportView
+from report.views import ReportView, FolderView
 from secureshare_messages.views import MessageInboxView, MessageSendView, MessageOutboxView, MessageDecryptView
 from authentication.views import RegisterView, LoginView, LogoutView, SiteManagerView, GroupView
 
@@ -31,6 +31,7 @@ urlpatterns = [
 
     url(r'^api/v1/reports/$',ReportView.as_view()),
     url(r'^api/v1/reports/(?P<pk>[0-9]+)/$',ReportView.as_view()),
+    url(r'^api/v1/reports/folders/',FolderView.as_view()),
 
     url(r'^api/v1/messages/inbox/$',MessageInboxView.as_view()),
     url(r'^api/v1/messages/inbox/(?P<pk>[0-9]+)/$',MessageInboxView.as_view()),
