@@ -212,7 +212,7 @@ class ReportTests(APITestCase):
 
 		self.assertEqual(
 			response.status_code,
-			status.HTTP_401_UNAUTHORIZED,
+			status.HTTP_400_BAD_REQUEST,
 			msg="unauthorized user was given access"
 			)
 

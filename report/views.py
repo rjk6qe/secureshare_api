@@ -30,59 +30,50 @@ class ReportView(views.APIView):
 		"""
 		For listing data
 		"""
-		user = self.request.user
-		if not user.is_anonymous():
-			user_profile = UserProfile.objects.get(user=user)
-			if 'pk' in self.kwargs:
-				try:
-					selected = Report.objects.get(pk=self.kwargs['pk'])
-					if selected.owner == request.user or selected.private == False or user_profile.site_manager:
-						return Response(
-							self.serializer_class(selected).data,
-							status=status.HTTP_200_OK
-							)
+		user = request.user
+		user_profile = UserProfile.objects.get(user=user)
 
-				except ObjectDoesNotExist:
+		if 'pk' in self.kwargs:
+			pk = self.kwargs['pk']
+			try:
+				selected = Report.objects.get(pk=pk)
+				if selected.owner == request.user or selected.private == False or user_profile.site_manager:
 					return Response(
-						status=status.HTTP_400_BAD_REQUEST
+						self.serializer_class(selected).data,
+						status=status.HTTP_200_OK
 						)
-			else:
-				if user_profile.site_manager:
-					queryset = Report.objects.all()
-				else:
-					queryset = Report.objects.filter(
-						Q(owner = user) | Q(private=False)
-						)
+				raise ObjectDoesNotExist
+			except ObjectDoesNotExist:
 				return Response(
-					self.serializer_class(queryset, many=True).data,
-					status = status.HTTP_200_OK
+					{"Message":"Message not visible to current user."},
+					status=status.HTTP_400_BAD_REQUEST
 					)
-		return Response(
-			status=status.HTTP_401_UNAUTHORIZED
-			)
+		else:
+			if user_profile.site_manager:
+				queryset = Report.objects.all()
+			else:
+				queryset = Report.objects.filter(
+					Q(owner = user) | Q(private=False)
+					)
+			return Response(
+				self.serializer_class(queryset, many=True).data,
+				status = status.HTTP_200_OK
+				)
 
-	def post(self, request,pk=None):
+	def post(self, request):
 		"""
 		For creating reports
 		"""
-		if 'pk' in self.kwargs:
-			return Response(
-				{"Error":"Cannot specify key for POST operations"},
-				status=status.HTTP_400_BAD_REQUEST
-				)
-		serializer = self.serializer_class(data = request.data)
+		serializer = self.serializer_class(
+			data = request.data,
+			context={"owner":request.user,"creating":True}
+			)
 		if serializer.is_valid():
-			if self.unique_report(request.user, serializer.validated_data['name']):
-				r = serializer.save(owner=request.user)
-				return Response(
-					serializer.data,
-					status = status.HTTP_201_CREATED
-					)
-			else:
-				return Response(
-					{'Error':'User already created this report'},
-					status = status.HTTP_400_BAD_REQUEST
-					)
+			serializer.save()
+			return Response(
+				serializer.data,
+				status = status.HTTP_201_CREATED
+				)
 		else:
 			return Response(
 				serializer.errors,
@@ -95,7 +86,7 @@ class ReportView(views.APIView):
 		"""
 		if 'pk' not in self.kwargs:
 			return Response(
-				{"Error":"Must supply key to existing Report"},
+				{"Message":"Must supply key to existing Report"},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 		pk = self.kwargs['pk']
@@ -103,7 +94,7 @@ class ReportView(views.APIView):
 			report = Report.objects.get(pk=pk)
 			if report.owner != request.user: #or has permission to do so
 				return Response(
-					{"message":"does not have permission to modify this report"},
+					{"Message":"does not have permission to modify this report"},
 					status=status.HTTP_400_BAD_REQUEST
 					)
 			response_dict = []
@@ -118,7 +109,7 @@ class ReportView(views.APIView):
 				)
 		except ObjectDoesNotExist:
 			return Response(
-				{"message":"code does not correspond to a valild report"},
+				{"Message":"code does not correspond to a valild report"},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
@@ -131,19 +122,23 @@ class ReportView(views.APIView):
 			return Response(
 				status = status.HTTP_400_BAD_REQUEST,
 				)
+		pk = self.kwargs['pk']
 		try:
-			report = Report.objects.get(pk=self.kwargs['pk'])
-			if report.owner != request.user:
-				return Response(status = status.HTTP_401_UNAUTHORIZED)
-			serializer = self.serializer_class(report, data = request.data)
-			if serializer.is_valid():
-				serializer.save()
-				return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
-			else:
-				return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
+			report = Report.objects.get(pk=pk)
+			if report.owner == request.user:
+				serializer = self.serializer_class(
+					report,
+					data=request.data
+					)
+				if serializer.is_valid():
+					serializer.save()
+					return Response(
+						serializer.data,
+						status=status.HTTP_200_OK
+						)
+			raise ObjectDoesNotExist
 		except ObjectDoesNotExist:
 			return Response("{'Error':'does not exist'}",status = status.HTTP_400_BAD_REQUEST)
-
 
 	def delete(self, request, pk=None):
 		"""
@@ -160,14 +155,10 @@ class ReportView(views.APIView):
 				return Response(
 					status = status.HTTP_200_OK
 					)
-			else:
-				return Response(
-					{"Error":"User is not the owner of this report"},
-					status = status.HTTP_400_BAD_REQUEST
-					)
-		except:
+			raise ObjectDoesNotExist
+		except ObjectDoesNotExist:
 			return Response(
-				{"Error":"This report does not exist."},
+				{"Message":"User cannot delete this report"},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
@@ -176,9 +167,13 @@ class FolderView(views.APIView):
 	serializer_class = FolderSerializer
 
 	def post(self, request):
-		serializer = self.serializer_class(data=request.data)
+
+		serializer = self.serializer_class(
+			data=request.data,
+			context={'owner':request.user,'creating':True}
+			)
 		if serializer.is_valid():
-			serializer.save(owner=request.user)
+			serializer.save()
 			return Response(
 				{"Message":"Folder successfully created"},
 				status = status.HTTP_201_CREATED
@@ -186,5 +181,31 @@ class FolderView(views.APIView):
 		else:
 			return Response(serializer.errors)
 
+	def patch(self, request, pk=None):
+		if 'pk' not in self.kwargs:
+			return Response(
+				{"Message":"Must specify key to update folders"},
+				status = status.HTTP_400_BAD_REQUEST
+				)
 
-# Create your views here.
+		pk = self.kwargs['pk']
+		try:
+			folder = Folder.objects.get(pk=pk)
+			if folder.owner == request.user:
+				serializer = self.serializer_class(
+					folder, 
+					data=request.data, 
+					context={'creating':False}
+					)
+				if serializer.is_valid():
+					serializer.save()
+				else:
+					return Response(
+						serializer.errors,
+						status = status.HTTP_400_BAD_REQUEST
+						)
+			raise ObjectDoesNotExist
+		except ObjectDoesNotExist:
+			return Response(
+				{"Message":"User cannot access this folder"}
+				)

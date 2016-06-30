@@ -31,12 +31,14 @@ urlpatterns = [
 
     url(r'^api/v1/reports/$',ReportView.as_view()),
     url(r'^api/v1/reports/(?P<pk>[0-9]+)/$',ReportView.as_view()),
-    url(r'^api/v1/reports/folders/',FolderView.as_view()),
+    url(r'^api/v1/reports/folders/$',FolderView.as_view()),
+    url(r'^api/v1/reports/folders/(?P<pk>[0-9]+/$',FolderView.as_view()),
 
     url(r'^api/v1/messages/inbox/$',MessageInboxView.as_view()),
     url(r'^api/v1/messages/inbox/(?P<pk>[0-9]+)/$',MessageInboxView.as_view()),
-    url(r'^api/v1/messages/outbox/',MessageOutboxView.as_view()),
-    url(r'^api/v1/messages/send/',MessageSendView.as_view()),
+    url(r'^api/v1/messages/outbox/$',MessageOutboxView.as_view()),
+    url(r'^api/v1/messages/outbox/(?P<pk>[0-9]+)/$',MessageOutboxView.as_view()),
+    url(r'^api/v1/messages/send/$',MessageSendView.as_view()),
     url(r'^api/v1/messages/decrypt/(?P<pk>[0-9]+)/$', MessageDecryptView.as_view()),
 
 

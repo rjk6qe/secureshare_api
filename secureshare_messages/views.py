@@ -26,20 +26,22 @@ class MessageInboxView(views.APIView):
 		)
 
 	def get(self, request, pk=None):
+		type = request.GET.get('request_type',"Inbox")
+
 		if 'pk' in self.kwargs:
 			pk = self.kwargs['pk']
 			try:
 				message = Message.objects.get(pk=pk)
 				serializer = self.serializer_class(message)
-				if message.recipient == request.user:
+				if message.sender == request.user:
 					return Response(
 						serializer.data,
 						status = status.HTTP_200_OK
 						)
-				raise ObjectDoesNotExist				
+				raise ObjectDoesNotExist
 			except ObjectDoesNotExist:
 				return Response(
-					{"Message":"Given key not in user's inbox"}
+					{"Message":"Given key not in user's inbox"},
 					status = HTTP_400_BAD_REQUEST
 					)
 		
@@ -68,7 +70,7 @@ class MessageInboxView(views.APIView):
 			raise ObjectDoesNotExist
 		except ObjectDoesNotExist:
 			return Response(
-				{"Message":"Given key not in user's inbox"}
+				{"Message":"Given key not in user's inbox"},
 				status = HTTP_400_BAD_REQUEST
 				)
 				
@@ -92,7 +94,23 @@ class MessageSendView(views.APIView):
 
 class MessageOutboxView(views.APIView):
 	serializer_class = MessageSerializer
-	def get(self, request):
+	def get(self, request,pk=None):
+		if 'pk' in self.kwargs:
+			pk = self.kwargs['pk']
+			try:
+				message = Message.objects.get(pk=pk)
+				if message.sender == request.user:
+					serializer = self.serializer_class(message)
+					return Response(
+						serializer.data,
+						status = status.HTTP_200_OK
+						)
+				raise ObjectDoesNotExist
+			except ObjectDoesNotExist:
+				return Response(
+					{"Message":"Given key is not in user's outbox"},
+					status = status.HTTP_400_BAD_REQUEST
+					)
 		queryset = Message.objects.filter(sender=request.user)
 		serializer = self.serializer_class(queryset, many=True)
 		return Response(

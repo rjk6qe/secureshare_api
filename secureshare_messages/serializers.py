@@ -23,7 +23,6 @@ class MessageSerializer(serializers.ModelSerializer):
 		body = data.get('body',None)
 		recipient = data.get('recipient',None)
 
-
 		if not (subject and body and recipient):
 			raise serializers.ValidationError(
 				{"Error":"Missing required fields"}
