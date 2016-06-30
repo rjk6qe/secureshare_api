@@ -197,3 +197,26 @@ class FolderView(views.APIView):
 			return Response(
 				{"Message":"User cannot access this folder"}
 				)
+
+	def delete(self, request,pk=None):
+		if 'pk' not in self.kwargs:
+			return Response(
+				{"Message":"Must specify which folder to delete"},
+				status = status.HTTP_400_BAD_REQUEST
+				)
+		pk = self.kwargs['pk']
+
+		try:
+			folder = Folder.objects.get(pk=pk)
+			if folder.owner == request.user:
+				folder.delete()
+				return Response(
+					{"Message":"Folder deleted successfully"},
+					status=status.HTTP_200_OK
+					)
+			raise ObjectDoesNotExist
+		except ObjectDoesNotExist:
+			return Response(
+				{"Message":"User cannot edit this folder"},
+				status = status.HTTP_400_BAD_REQUEST
+				)

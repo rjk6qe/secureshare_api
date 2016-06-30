@@ -8,8 +8,6 @@ from authentication.models import UserProfile
 
 from Crypto.PublicKey import RSA
 
-
-
 class UserSerializer(serializers.ModelSerializer):
 
 	testing = True
@@ -81,6 +79,47 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 		return user_profile
 
+class SiteManagerSerializer(serializers.Serializer):
+
+	creating = serializers.BooleanField()
+	users = serializers.ListField(
+		child = serializers.CharField(max_length=30)
+		)
+
+	def validate(self, data):
+		user_list = data.get('users')
+
+		new_user_list = []
+		for user in user_list:
+			try:
+				user = User.objects.get(username=user)
+				new_user_list.append(UserProfile.objects.get(user=user))
+			except ObjectDoesNotExist:
+				raise serializers.ValidationError(
+					{"Error":"At least one user does not exist"}
+					)
+
+		data['users'] = new_user_list
+		return data
+
+	def create(self, validated_data):
+		site_manager = validated_data.get('site_manager')
+		active = validated_data.get('active')
+		user_list = validated_data.get('users')
+
+		return_list = []
+		for user_profile in user_list:
+			user = user_profile.user
+
+			user_profile.site_manager = site_manager
+			user.is_active = active
+			
+			user_profile.save()
+			user.save()
+			
+			return_list.append(user.username)
+
+		return return_list
 
 class GroupSerializer(serializers.Serializer):
 

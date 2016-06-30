@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework import authentication, permissions
 from rest_framework.authtoken.models import Token
 
-from authentication.serializers import UserSerializer, UserProfileSerializer, GroupSerializer
+from authentication.serializers import UserSerializer, UserProfileSerializer, GroupSerializer, SiteManagerSerializer
 from authentication.models import UserProfile
 from authentication.permissions import site_manager_only
 
@@ -80,74 +80,31 @@ class LogoutView(views.APIView):
 			return Response({"Message":"User successfully logged out"}, status = status.HTTP_200_OK)
 		except ObjectDoesNotExist:
 			return Response({"Message":"User is not logged in"},status=status.HTTP_400_BAD_REQUEST)
-
 		
 class SiteManagerView(views.APIView):
 
 	permission_classes = (site_manager_only, )
-	queryset = UserProfile.objects.filter(site_manager=True)
-
+	#queryset = UserProfile.objects.filter(site_manager=True)
+	serializer_class = SiteManagerSerializer
+	active_serializer_class = 
 	"""
-	[{"username":"user1"},{"username":"user2"}]
+	users:[{"username":"user1"},{"username":"user2"}], site_manager:true/false, active: true/false
 
 	"""
 
 	def post(self, request):
-		user_list = request.data
-		error_list = []
-		success_list = []
-		error = False
-		for user in user_list:
-			try:
-				new_user = User.objects.get(username=user['username'])
-				new_user.is_active = not new_user.is_active
-				new_user.save()
-				success_list.append(new_user.username)
-			except ObjectDoesNotExist:
-				error = True
-				error_list.append(user['username'])
-
-		if error:
+		serializer = self.serializer_class(data=request.data)
+		if serializer.is_valid():
+			serializer.save()
 			return Response(
-				{"Message":"Some users could not have their status changed"},
-				{"Success":success_list},
-				{"Failed":error_list},
-				status = status.HTTP_400_BAD_REQUEST
+				serializer.data,
+				status=status.HTTP_200_OK
 				)
 		else:
 			return Response(
-				{"Message":"All users changed successfully"},
-				{"Success":success_list},
-				status = status.HTTP_200_OK
-				)
-
-	def patch(self, request):
-		user_list = request.data
-		user_list_size = len(user_list)
-		error_list = []
-		success_list = []
-		error = False
-		for user in user_list:
-			try:
-				new_user = User.objects.get(username=user['username'])
-				user_profile = UserProfile.objects.get(user=new_user)
-				user_profile.site_manager = True
-				user_profile.save()
-				success_list.append(user['username'])
-			except ObjectDoesNotExist:
-				error = True
-				error_list.append(user['username'])
-		if error:
-			return Response(
-				[{"Message":"Some listed users could not be made site managers."},
-				{"Failure":error_list},
-				{"Success":success_list}],
+				serializer.errors,
 				status = status.HTTP_400_BAD_REQUEST
 				)
-		return Response(
-			[{"Message":"All users succesfully made site managers"},
-			{"Success":success_list}],
-			status = status.HTTP_200_OK)
 
 
 class GroupView(views.APIView):
@@ -180,7 +137,8 @@ class GroupView(views.APIView):
 				)
 		try:
 			group = Group.objects.get(name=group_name)
-			if group not in request.user.groups.all():
+
+			if group not in request.user.groups.all() and :
 				return Response(
 					{"Message":"User can only modify a group they are a member of"},
 					status = status.HTTP_400_BAD_REQUEST
@@ -194,7 +152,7 @@ class GroupView(views.APIView):
 					)
 			else:
 				return Response(
-					{"Message":"Something went wrong"},
+					serializer.errors,
 					status = status.HTTP_400_BAD_REQUEST
 					)
 		except ObjectDoesNotExist:
