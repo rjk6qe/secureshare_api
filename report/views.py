@@ -10,6 +10,8 @@ from report.serializers import ReportSerializer, FolderSerializer
 from report.models import Report, Document, Folder
 from authentication.models import UserProfile
 
+import json
+
 class ReportView(views.APIView):
 	"""
 	Create new report using POST
@@ -26,7 +28,7 @@ class ReportView(views.APIView):
 				return False
 		return True
 
-	def get(self,request,pk=None):			
+	def get(self,request,pk=None):
 		"""
 		For listing data
 		"""
@@ -64,52 +66,30 @@ class ReportView(views.APIView):
 		"""
 		For creating reports
 		"""
+		json_dict = json.loads(request.data.get('data'))
 		serializer = self.serializer_class(
-			data = request.data,
+			data = json_dict,
 			context={"owner":request.user,"creating":True}
 			)
 		if serializer.is_valid():
-			serializer.save()
+			report = serializer.save()
+
+			encrypted = False
+			for filename in request.FILES.getlist('file'):
+				if filename[:3] == 'enc':
+					encrypted = True
+				new_doc = Document(file = filename, encrypted = encrypted)
+				new_doc.save()
+				report.files.add(new_doc)
+				encrypted = False
+
 			return Response(
-				serializer.data,
+				self.serializer_class(report).data,
 				status = status.HTTP_201_CREATED
 				)
 		else:
 			return Response(
 				serializer.errors,
-				status = status.HTTP_400_BAD_REQUEST
-				)
-
-	def put(self, request,pk=None):
-		"""
-		For uploading files for already existing reports
-		"""
-		if 'pk' not in self.kwargs:
-			return Response(
-				{"Message":"Must supply key to existing Report"},
-				status = status.HTTP_400_BAD_REQUEST
-				)
-		pk = self.kwargs['pk']
-		try:
-			report = Report.objects.get(pk=pk)
-			if report.owner != request.user: #or has permission to do so
-				return Response(
-					{"Message":"does not have permission to modify this report"},
-					status=status.HTTP_400_BAD_REQUEST
-					)
-			response_dict = []
-			for filename in request.FILES.getlist('file'):
-				new_doc = Document(file = filename)
-				new_doc.save()
-				response_dict.append({'file_id':new_doc.pk})
-				report.files.add(new_doc)
-			return Response(
-				response_dict,
-				status = status.HTTP_202_ACCEPTED
-				)
-		except ObjectDoesNotExist:
-			return Response(
-				{"Message":"code does not correspond to a valild report"},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
@@ -136,9 +116,17 @@ class ReportView(views.APIView):
 						serializer.data,
 						status=status.HTTP_200_OK
 						)
+				else:
+					return Response(
+						serializer.errors,
+						status = status.HTTP_400_BAD_REQUEST
+						)
 			raise ObjectDoesNotExist
 		except ObjectDoesNotExist:
-			return Response("{'Error':'does not exist'}",status = status.HTTP_400_BAD_REQUEST)
+			return Response(
+				{"Message":"This report cannot be edited by the user"},
+				status = status.HTTP_400_BAD_REQUEST
+				)
 
 	def delete(self, request, pk=None):
 		"""

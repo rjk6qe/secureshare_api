@@ -16,8 +16,8 @@ import json
 
 class ReportTests(APITestCase):
 
-	list_of_users = ['user1','user2','user3','user4','user5']
-	list_of_passwords = ['password1','password2', 'password3', 'password4', 'password5']
+	list_of_users = ['user1','user2','user3']
+	list_of_passwords = ['password1','password2', 'password3']
 
 	register_url = '/api/v1/users/register/'
 	login_url = '/api/v1/users/login/'
@@ -110,7 +110,7 @@ class ReportTests(APITestCase):
 		response = self.client.post(self.reports_url, self.public_report_data, format='json')
 		self.assertEqual(
 			response.status_code,
-			status.HTTP_401_UNAUTHORIZED,
+			status.HTTP_200_OK,
 			msg="Incorrect status code for unauthorized request"
 			)
 

@@ -12,11 +12,9 @@ class DocumentSerializer(serializers.ModelSerializer):
 
 	class Meta:
 		model = Document
-		fields = ['file','pk']
+		fields = ['file','pk','encrypted']
 
 class ReportSerializer(serializers.ModelSerializer):
-
-	parsers = (MultiPartParser, JSONParser)
 
 	name = serializers.CharField(required=False)
 	short_description = serializers.CharField(required = False)
@@ -169,5 +167,3 @@ class FolderSerializer(serializers.ModelSerializer):
 
 		instance.save()
 		return instance
-
-

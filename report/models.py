@@ -4,6 +4,7 @@ from django.contrib.auth.models import User, Group
 
 class Document(models.Model):
 	file = models.FileField(upload_to='uploads/%Y/%m/%d/')
+	encrypted = models.BooleanField(default=False)
 
 class Report(models.Model):
 	name = models.CharField(max_length=50)
