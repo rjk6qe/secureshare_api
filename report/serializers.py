@@ -18,7 +18,11 @@ class ReportSerializer(serializers.ModelSerializer):
 
 	name = serializers.CharField(required=False)
 	short_description = serializers.CharField(required = False)
-	long_description = serializers.CharField(required = False)
+	long_description = serializers.CharField(required = False)	
+	encrypted = serializers.ListField(
+		child=serializers.BooleanField(),
+		required=False
+		)
 	files = DocumentSerializer(read_only=True,many=True)
 
 	class Meta:
@@ -29,8 +33,10 @@ class ReportSerializer(serializers.ModelSerializer):
 			'private',
 			'short_description',
 			'long_description',
+			'encrypted',
 			'files'
 			)
+		extra_kwargs={'encrypted':{'write_only':True}}
 
 	def unique_report(self, user, report_name):
 		report_query = Report.objects.filter(name=report_name)
@@ -42,6 +48,14 @@ class ReportSerializer(serializers.ModelSerializer):
 	def validate(self, data):
 		creating = self.context.get('updating', True)
 		owner = self.context.get('owner',None)
+		num_files = self.context.get('num_files')
+
+		encrypted_list = data.get('encrypted',None)
+		if num_files > 0:
+			if encrypted_list == None:
+				raise serializers.VaildationError({"Error":"There are uploaded files and no encrypted field"})
+			if num_files != len(encrypted_list):
+				raise serializers.ValidationError({"Error":"The encrypted field expects a boolean for each file uploaded","num_files":str(num_files),"encrypted":str(len(encrypted_list))})
 
 		if creating:
 			report_name = data.get('name',None)
@@ -91,7 +105,7 @@ class FolderSerializer(serializers.ModelSerializer):
 
 	def validate(self, data):
 		creating = self.context.get('creating')
-
+		
 		if creating:
 			owner = self.context.get('owner')
 			data['owner'] = owner

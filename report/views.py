@@ -66,23 +66,29 @@ class ReportView(views.APIView):
 		"""
 		For creating reports
 		"""
-		json_dict = json.loads(request.data.get('data'))
+
+		json_dict = json.loads(request.data.get('data'),None)
+		if json_dict == None:
+			return Response({"Error":"Missing 'data' field"},status=status.HTTP_400_BAD_REQUEST)
+		
+
+		file_list = request.FILES.getlist('file')
+		num_files = len(file_list)
+
 		serializer = self.serializer_class(
 			data = json_dict,
-			context={"owner":request.user,"creating":True}
+			context={"owner":request.user,"creating":True,"num_files":num_files}
 			)
+
 		if serializer.is_valid():
 			report = serializer.save()
-
-			encrypted = False
-			for filename in request.FILES.getlist('file'):
-				if filename[:3] == 'enc':
-					encrypted = True
-				new_doc = Document(file = filename, encrypted = encrypted)
-				new_doc.save()
-				report.files.add(new_doc)
-				encrypted = False
-
+			if num_files > 0:
+				encrypted_list = json_dict['encrypted']
+				for i in range(0, num_files):
+					new_doc = Document(file=file_list[i], encrypted=encrypted_list[i])
+					new_doc.save()
+					report.files.add(new_doc)
+				report.save()
 			return Response(
 				self.serializer_class(report).data,
 				status = status.HTTP_201_CREATED
@@ -90,6 +96,7 @@ class ReportView(views.APIView):
 		else:
 			return Response(
 				serializer.errors,
+
 				status = status.HTTP_400_BAD_REQUEST
 				)
 

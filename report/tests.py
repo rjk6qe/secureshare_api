@@ -1,17 +1,18 @@
 from django.test import Client
 from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth.models import User
 
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework.authtoken.models import Token
 
-from django.contrib.auth.models import User
 from authentication.models import UserProfile
 from report.models import Report, Document
 from report.serializers import ReportSerializer
 
 import random
 import json
+import os
 
 class ReportTests(APITestCase):
 
@@ -22,11 +23,14 @@ class ReportTests(APITestCase):
 	login_url = '/api/v1/users/login/'
 	reports_url = '/api/v1/reports/'
 
+	base_dir = '/home/richard/secureshare/temp_keys/'
+
 	private_report_data = { "name": "This is a Report", 
 		"short_description" : "This is a short description",
 		"long_description" : "This is a long description",
 		"private":"True"
 		}
+
 	public_report_data = {"name": "This is a Report", 
 		"short_description": "This is a short description",
 		"long_description":"This is a long description people can see",
@@ -65,15 +69,15 @@ class ReportTests(APITestCase):
 		user_three = User.objects.get(username=self.list_of_users[2])
 
 		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
-		response = self.client.post(self.reports_url, self.public_report_data, format='json')
-
-		file_list = response.data.pop('files')
-
+		response = self.client.post(self.reports_url, {'data':json.dumps(self.public_report_data)},format='multipart')
+		
 		self.assertEqual(
 			response.status_code,
 			status.HTTP_201_CREATED,
-			msg = "Incorrect response code when creating a valid report"
+			msg = "Incorrect response code when creating a valid report" + str(response.data)
 			)
+
+		file_list = response.data.pop('files')
 
 		self.assertEqual(
 			Report.objects.count(),
@@ -99,6 +103,62 @@ class ReportTests(APITestCase):
 			msg = "Created Report object has incorrect long description"
 			)	
 
+	def test_post_files(self):
+		token_list = self.generate_users_receive_tokens()
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		file_one = self.base_dir + "file_one"
+		file_one_content = "This is a test file, please work"
+		file_two = self.base_dir + "file_two"
+		file_two_content = "kas.jdfsf asdf .has as d///*&(* bunch of characters in it....skfsld;kaf2131"
+
+		file_one_ptr = open(file_one,'wb+')
+		file_one_ptr.write(bytes(file_one_content.encode('utf-8')))
+		file_two_ptr = open(file_two,'wb+')
+		file_two_ptr.write(bytes(file_two_content.encode('utf-8')))
+
+		encrypted_list = [True, True]
+		self.private_report_data['encrypted'] = encrypted_list
+
+		files = {"file_one":file_one_ptr, "file_two":file_two_ptr}
+
+		send_data = {'data':json.dumps(self.private_report_data),'file':[file_one_ptr,file_two_ptr]}
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_one_token))	
+		response = self.client.post(
+			self.reports_url,
+			send_data,
+			format='multipart'
+			)
+
+		self.assertEqual(
+		 	response.status_code,
+		 	status.HTTP_201_CREATED,
+		 	msg="Incorrect response code when creating report with files" + str(response.data)
+			)
+
+		report = Report.objects.get()
+		doc_list = report.files.all()
+
+		self.assertEqual(
+			len(doc_list),
+			2,
+			msg="Incorrect number of documents associated with report" + str(response.data)
+			)
+
+		os.remove(file_one)
+		os.remove(file_two)
+
+		for file in doc_list:
+			os.remove("/home/richard/secureshare/secureshare/media/" + str(file.file))
+
 	def test_get_private(self):
 		token_list = self.generate_users_receive_tokens()
 		
@@ -111,7 +171,7 @@ class ReportTests(APITestCase):
 		user_three = User.objects.get(username=self.list_of_users[2])
 
 		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
-		self.client.post(self.reports_url, self.private_report_data, format='json')
+		self.client.post(self.reports_url, {'data':json.dumps(self.private_report_data)}, format='json')
 
 		response = self.client.get(self.reports_url)
 
@@ -154,58 +214,33 @@ class ReportTests(APITestCase):
 			msg="A different user was able to see a private report"
 			)
 
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + site_manager_token)
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_three_token))
+		self.client.post(self.reports_url, {'data':json.dumps(self.public_report_data)}, format='json')
+
 		response = self.client.get(self.reports_url)
 
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_200_OK,
-			msg="Site manager was denied access"
-			)
 		self.assertEqual(
 			len(response.data),
 			1,
-			msg="Incorrect number of reports"
-			)		
-
-		response = self.client.get(self.reports_url + '2/')
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_400_BAD_REQUEST,
-			msg="invalid private key results in incorrect status code"
+			msg="User 3 get request returned incorrect number of reports"
 			)
 
-		response = self.client.get(self.reports_url + '1/')
-
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_200_OK,
-			msg="SM: correct private key results in incorrect status code"
-			)
-
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + reporter_two_token)
-		response = self.client.get(self.reports_url + '1/')
-
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_400_BAD_REQUEST,
-			msg="unauthorized user was given access"
-			)
-
-		self.client.post(self.reports_url, self.private_report_data, format='json')
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + reporter_one_token)
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
 		response = self.client.get(self.reports_url)
+
 		self.assertEqual(
-			len(response.data),			
-			1,
-			msg="Incorrect number of reports"
-			)
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + site_manager_token)
-		response = self.client.get(self.reports_url)
-		self.assertEqual(
-			len(response.data),			
+			len(response.data),
 			2,
-			msg="Incorrect number of reports"
+			msg="User 2 get request returned incorrect number of reports"
+			)
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
+		response = self.client.get(self.reports_url)
+
+		self.assertEqual(
+			len(response.data),
+			1,
+			msg="User 1 get request returned incorrect number of reports"
 			)
 
 	def test_get_site_manager(self):
@@ -220,7 +255,7 @@ class ReportTests(APITestCase):
 		user_three = User.objects.get(username=self.list_of_users[2])
 
 		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
-		self.client.post(self.reports_url, self.private_report_data, format='json')
+		self.client.post(self.reports_url, {'data':json.dumps(self.private_report_data)}, format='json')
 
 		profile = UserProfile.objects.get(user=user_one)
 		profile.site_manager = True
@@ -234,47 +269,109 @@ class ReportTests(APITestCase):
 			msg="Site manager could not see private report"
 			)
 
-	def test_patch(self):
+	def test_get_by_id(self):
 		token_list = self.generate_users_receive_tokens()
-		token = token_list[2]
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
 
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
-		response = self.client.patch(self.reports_url, self.private_report_data, format='json')
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
 
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_400_BAD_REQUEST
-			)
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
+		response = self.client.post(self.reports_url, {'data':json.dumps(self.public_report_data)}, format='json')
+		pk = response.data['pk']
 
-		response = self.client.patch(self.reports_url + '1/', self.private_report_data, format='json')
+		response = self.client.get(self.reports_url + str(pk) + "/")
 
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_400_BAD_REQUEST
-			)
+		response.data.pop('pk')
+		response.data.pop('files')
 
-		response = self.client.post(self.reports_url, self.private_report_data, format='json')
-		created_pk = response.data['pk']
-
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + token_list[1])
-		response = self.client.patch(self.reports_url + str(created_pk) + '/', self.private_report_data, format='json')
-
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_401_UNAUTHORIZED,
-			msg="Accepted unauthorized request " + str(response.data)
-			)
-
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
-		response = self.client.patch(self.reports_url + str(created_pk) + '/', self.public_report_data, format='json')
-
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_202_ACCEPTED,
-			msg="Authorized request denied"
-			)
 		self.assertEqual(
 			response.data['name'],
-			self.private_report_data['name'],
-			msg="Incorrect field name"
+			self.public_report_data['name'],
+			msg="Returned incorrect report information"
 			)
+
+		response = self.client.get(self.reports_url + "2/")
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
+			msg="Invalid id gave incorrect response code"
+			)
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
+		response = self.client.post(self.reports_url, {'data':json.dumps(self.private_report_data)}, format='json')
+		private_pk = response.data['pk']
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
+		response = self.client.get(self.reports_url + str(private_pk) + "/")
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
+			msg="Another user was able to request a private report"
+			)
+
+		profile = UserProfile.objects.get(user=user_three)
+		profile.site_manager = True
+		profile.save()
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_three_token))
+		response = self.client.get(self.reports_url + str(private_pk) + "/")
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Site manager denied request to a private report"
+			)
+
+
+
+	# def test_patch(self):
+	# 	token_list = self.generate_users_receive_tokens()
+	# 	token = token_list[2]
+
+	# 	self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
+	# 	response = self.client.patch(self.reports_url, self.private_report_data, format='json')
+
+	# 	self.assertEqual(
+	# 		response.status_code,
+	# 		status.HTTP_400_BAD_REQUEST
+	# 		)
+
+	# 	response = self.client.patch(self.reports_url + '1/', self.private_report_data, format='json')
+
+	# 	self.assertEqual(
+	# 		response.status_code,
+	# 		status.HTTP_400_BAD_REQUEST
+	# 		)
+
+	# 	response = self.client.post(self.reports_url, self.private_report_data, format='json')
+	# 	created_pk = response.data['pk']
+
+	# 	self.client.credentials(HTTP_AUTHORIZATION='Token ' + token_list[1])
+	# 	response = self.client.patch(self.reports_url + str(created_pk) + '/', self.private_report_data, format='json')
+
+	# 	self.assertEqual(
+	# 		response.status_code,
+	# 		status.HTTP_401_UNAUTHORIZED,
+	# 		msg="Accepted unauthorized request " + str(response.data)
+	# 		)
+
+	# 	self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
+	# 	response = self.client.patch(self.reports_url + str(created_pk) + '/', self.public_report_data, format='json')
+
+	# 	self.assertEqual(
+	# 		response.status_code,
+	# 		status.HTTP_202_ACCEPTED,
+	# 		msg="Authorized request denied"
+	# 		)
+	# 	self.assertEqual(
+	# 		response.data['name'],
+	# 		self.private_report_data['name'],
+	# 		msg="Incorrect field name"
+	# 		)

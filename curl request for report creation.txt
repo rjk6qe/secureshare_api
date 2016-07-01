@@ -1,0 +1,1 @@
+curl -i -X POST -H "Authorization: Token c21cb45421f0316f391a7f7f8994ae7d613f3ab5" -F 'data'='{"name":"test2","short_description":"sh","long_description":"ln","private":"False","encrypted":["True","True"]}' -F "file"="@/home/richard/secureshare/requirements.txt","/home/richard/secureshare/requirements.txt" http://127.0.0.1:8000/api/v1/reports/ > output.html
