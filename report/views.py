@@ -62,44 +62,6 @@ class ReportView(views.APIView):
 				status = status.HTTP_200_OK
 				)
 
-	def post(self, request):
-		"""
-		For creating reports
-		"""
-
-		json_dict = json.loads(request.data.get('data'),None)
-		if json_dict == None:
-			return Response({"Error":"Missing 'data' field"},status=status.HTTP_400_BAD_REQUEST)
-		
-
-		file_list = request.FILES.getlist('file')
-		num_files = len(file_list)
-
-		serializer = self.serializer_class(
-			data = json_dict,
-			context={"owner":request.user,"creating":True,"num_files":num_files}
-			)
-
-		if serializer.is_valid():
-			report = serializer.save()
-			if num_files > 0:
-				encrypted_list = json_dict['encrypted']
-				for i in range(0, num_files):
-					new_doc = Document(file=file_list[i], encrypted=encrypted_list[i])
-					new_doc.save()
-					report.files.add(new_doc)
-				report.save()
-			return Response(
-				self.serializer_class(report).data,
-				status = status.HTTP_201_CREATED
-				)
-		else:
-			return Response(
-				serializer.errors,
-
-				status = status.HTTP_400_BAD_REQUEST
-				)
-
 	def patch(self, request, pk=None):
 		"""
 		For updating existing report fields
@@ -112,22 +74,25 @@ class ReportView(views.APIView):
 		pk = self.kwargs['pk']
 		try:
 			report = Report.objects.get(pk=pk)
-			if report.owner == request.user:
-				serializer = self.serializer_class(
-					report,
-					data=request.data
+			if request.user != report.owner:
+				return Response({"Error":"You cannot modify a different user's report"},status=status.HTTP_400_BAD_REQUEST)
+
+			serializer = self.serializer_class(
+				report,
+				data=json.loads(request.data.get('data')),
+				context={'creating':False,'current_name':report.name}
+				)
+			if serializer.is_valid():
+				serializer.save()
+				return Response(
+					serializer.data,
+					status=status.HTTP_200_OK
 					)
-				if serializer.is_valid():
-					serializer.save()
-					return Response(
-						serializer.data,
-						status=status.HTTP_200_OK
-						)
-				else:
-					return Response(
-						serializer.errors,
-						status = status.HTTP_400_BAD_REQUEST
-						)
+			else:
+				return Response(
+					serializer.errors,
+					status = status.HTTP_400_BAD_REQUEST
+					)
 			raise ObjectDoesNotExist
 		except ObjectDoesNotExist:
 			return Response(
@@ -157,12 +122,57 @@ class ReportView(views.APIView):
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
+	def post(self, request):
+		"""
+		For creating reports
+		"""
+
+		json_dict = json.loads(request.data.get('data'),None)
+		if json_dict == None:
+			return Response({"Error":"Missing 'data' field"},status=status.HTTP_400_BAD_REQUEST)
+		
+
+		file_list = request.FILES.getlist('file')
+		num_files = len(file_list) or 0
+
+		serializer = self.serializer_class(
+			data = json_dict,
+			context={'owner':request.user,'creating':True,'num_files':num_files}
+			)
+
+		if serializer.is_valid():
+			report = serializer.save()
+			if num_files > 0:
+				encrypted_list = json_dict['encrypted']
+				for i in range(0, num_files):
+					new_doc = Document(file=file_list[i], encrypted=encrypted_list[i])
+					new_doc.save()
+					report.files.add(new_doc)
+				report.save()
+			return Response(
+				self.serializer_class(report).data,
+				status = status.HTTP_201_CREATED
+				)
+		else:
+			return Response(
+				serializer.errors,
+
+				status = status.HTTP_400_BAD_REQUEST
+				)
+
+
 class FolderView(views.APIView):
 
 	serializer_class = FolderSerializer
 
-	def post(self, request):
+	def get(self, request):
+		queryset = Folder.objects.filter(owner=request.user)
+		return Response(
+			self.serializer_class(queryset,many=True),
+			status = HTTP_200_OK
+			)
 
+	def post(self, request):
 		serializer = self.serializer_class(
 			data=request.data,
 			context={'owner':request.user,'creating':True}

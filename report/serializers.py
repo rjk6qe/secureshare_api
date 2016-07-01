@@ -46,9 +46,9 @@ class ReportSerializer(serializers.ModelSerializer):
 		return True
 
 	def validate(self, data):
-		creating = self.context.get('updating', True)
+		creating = self.context.get('creating', True)
 		owner = self.context.get('owner',None)
-		num_files = self.context.get('num_files')
+		num_files = self.context.get('num_files',0)
 
 		encrypted_list = data.get('encrypted',None)
 		if num_files > 0:
@@ -67,10 +67,11 @@ class ReportSerializer(serializers.ModelSerializer):
 				raise serializers.ValidationError(
 					{"Error":"Missing required fields"}
 					)
-			if not self.unique_report(owner, report_name):
-				raise serializers.ValidationError(
-					{"Error":"User already has a report with this name"}
-					)
+			# if not self.unique_report(owner, report_name):
+			# 	raise serializers.ValidationError(
+			# 		{"Error":"User already has a report with this name"}
+			# 		)
+
 		return data
 
 	def create(self, validated_data):
@@ -87,21 +88,23 @@ class ReportSerializer(serializers.ModelSerializer):
 		instance.name = validated_data.get('name',instance.name)
 		instance.short_description = validated_data.get('short_description',instance.short_description)
 		instance.long_description = validated_data.get('long_description',instance.long_description)
+		instance.private = validated_data.get('private',instance.private)
 		instance.save()
 		return instance
 
 class FolderSerializer(serializers.ModelSerializer):
 
 	reports = serializers.ListField(
-		child = serializers.CharField(max_length=50)
+		child = serializers.IntegerField()
 		)
 	groups = serializers.ListField(
-		child = serializers.CharField(max_length=80)
+		child = serializers.CharField(max_length=80),
+		required=False
 		)
 
 	class Meta:
 		model = Folder
-		fields = ['name','reports','groups']
+		fields = ['pk','name','reports','groups']
 
 	def validate(self, data):
 		creating = self.context.get('creating')
@@ -110,27 +113,38 @@ class FolderSerializer(serializers.ModelSerializer):
 			owner = self.context.get('owner')
 			data['owner'] = owner
 			name = data.get('name')
-			for folder in Folder.objects.filter(owner=owner):
+			folder_list = Folder.objects.filter(owner=owner)
+			for folder in folder_list:
 				if folder.name == name:
 					raise serializers.ValidationError(
 						{"Error":"User already has a report with this name"}
 						)
 
-		report_list = data.get('reports')
-		group_list = data.get('groups')
+		report_list = data.get('reports',None)
+		if report_list == None:
+			raise serializers.ValidationError(
+				{"Error":"Must specify at least one report"}
+				)
+		if len(report_list) == 0:
+			raise serializers.ValidationError(
+				{"Error":"Must specify at least one report"}
+				)
+
 		new_report_list = []
 		new_group_list = []
 
 		r = Report()
 		for report in report_list:
 			try:
-				new_report_list.append(Report.objects.get(name=report))
+				new_report_list.append(Report.objects.get(pk=report))
 			except ObjectDoesNotExist:
 				raise serializers.ValidationError(
 					{"Error":"At least one report name was invalid"}
 					)
 
 		data['reports'] = new_report_list
+
+		group_list = data.get('groups', None) or []
 
 		g = Group()
 		for group in group_list:
@@ -142,7 +156,6 @@ class FolderSerializer(serializers.ModelSerializer):
 					)
 
 		data['groups'] = new_group_list
-
 		return data
 
 	def create(self, validated_data):

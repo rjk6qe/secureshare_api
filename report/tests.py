@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework.authtoken.models import Token
 
 from authentication.models import UserProfile
-from report.models import Report, Document
+from report.models import Report, Document, Folder
 from report.serializers import ReportSerializer
 
 import random
@@ -22,6 +22,7 @@ class ReportTests(APITestCase):
 	register_url = '/api/v1/users/register/'
 	login_url = '/api/v1/users/login/'
 	reports_url = '/api/v1/reports/'
+	folders_url = '/api/v1/reports/folders/'
 
 	base_dir = '/home/richard/secureshare/temp_keys/'
 
@@ -329,7 +330,152 @@ class ReportTests(APITestCase):
 			msg="Site manager denied request to a private report"
 			)
 
+	def test_delete(self):
+		token_list = self.generate_users_receive_tokens()
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
 
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_one_token))
+		self.client.post(self.reports_url, {'data':json.dumps(self.public_report_data)},format='multipart')
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_two_token))
+		response = self.client.delete(self.reports_url+'1/')
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
+			msg="Incorrect status code when trying to delete another user's public report"
+			)
+
+		self.assertEqual(
+			Report.objects.count(),
+			1,
+			msg="A user deleted another user's report"
+			)
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_one_token))
+		response = self.client.delete(self.reports_url+'1/')		
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Incorrect status code when a user tried to delete their report"
+			)
+
+		self.assertEqual(
+			Report.objects.count(),
+			0,
+			msg="A user was not able to delete their own report"
+			)
+
+	def test_patch(self):
+		token_list = self.generate_users_receive_tokens()
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_one_token))
+		self.client.post(self.reports_url, {'data':json.dumps(self.public_report_data)},format='multipart')
+
+		old = self.public_report_data['name']
+		new = "this is a different field"
+		self.public_report_data['name'] = new
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_one_token))
+		response = self.client.patch(self.reports_url+'1/',{'data':json.dumps(self.public_report_data)})
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Incorrect status code when a valid user tried to modify their report" + str(response.data)
+			)
+
+		self.assertEqual(
+			Report.objects.get().name,
+			new,
+			msg="The report object name was not changed"
+			)
+
+		self.public_report_data['name'] = old
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_two_token))
+		response = self.client.patch(self.reports_url+'1/',{'data':json.dumps(self.public_report_data)})
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
+			msg="Incorrect status code when a user was able to modify another user's report"
+			)
+
+		self.assertEqual(
+			Report.objects.get().name,
+			new,
+			msg="A user was able to modify another user's report"
+			)
+
+	def test_folder_post(self):
+		token_list = self.generate_users_receive_tokens()
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_one_token))
+		self.client.post(self.reports_url, {'data':json.dumps(self.public_report_data)},format='multipart')
+
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(user_two_token))
+		self.client.post(self.reports_url, {'data':json.dumps(self.private_report_data)},format='multipart')
+
+		response = self.client.get(self.reports_url)
+
+		report_list = response.data
+		pk_list = []
+		
+		for report in report_list:
+			pk_list.append(report['pk'])
+
+		data = {"name":"folder_name", "reports":pk_list}
+
+		response = self.client.post(self.folders_url, data, format='json')
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_201_CREATED,
+			msg="Incorrect response code when a user tried creating a folder"
+			)
+
+		self.assertEqual(
+			Folder.objects.count(),
+			1,
+			msg="Folder object was not created"
+			)
+
+		self.assertEqual(
+			Folder.objects.get().owner,
+			user_two,
+			msg="Folder object has incorrect owner"
+			)
+
+		self.assertEqual(
+			len(Folder.objects.get().reports.all()),
+			len(pk_list),
+			msg="Folder object has incorrect number of reports"
+			)
 
 	# def test_patch(self):
 	# 	token_list = self.generate_users_receive_tokens()
