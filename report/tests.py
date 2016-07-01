@@ -13,7 +13,6 @@ from report.serializers import ReportSerializer
 import random
 import json
 
-
 class ReportTests(APITestCase):
 
 	list_of_users = ['user1','user2','user3']
@@ -24,158 +23,135 @@ class ReportTests(APITestCase):
 	reports_url = '/api/v1/reports/'
 
 	private_report_data = { "name": "This is a Report", 
-	"short_description" : "This is a short description",
-	"long_description" : "This is a long description",
-	"private":"True"
-	}
+		"short_description" : "This is a short description",
+		"long_description" : "This is a long description",
+		"private":"True"
+		}
 	public_report_data = {"name": "This is a Report", 
-	"short_description": "This is a short description",
-	"long_description":"This is a long description people can see",
-	"private":"False"
-	}
+		"short_description": "This is a short description",
+		"long_description":"This is a long description people can see",
+		"private":"False"
+		}
 
 	serializer_class = ReportSerializer
 
-
 	def generate_users_receive_tokens(self):
 		size_of_list = len(self.list_of_users)
+		token_list = []
 		
 		for i in range(0, size_of_list):
-			data = {"username": self.list_of_users[i], "password": self.list_of_passwords[i]}
-			self.client.post(self.register_url, data, format='json')
-
-		self.assertEqual(
-			User.objects.count(),
-			size_of_list,
-			msg="Users not created"
-			)
-
-		token_list = []
-		data = {}
-
-		for i in range(0, size_of_list):
-			data = {"username": self.list_of_users[i], "password" : self.list_of_passwords[i]}
-			response = self.client.post(self.login_url, data, format='json')
-			self.assertEqual(
-				response.status_code,
-				status.HTTP_200_OK,
-				msg="invalid user"
+			user = User.objects.create(
+				username=self.list_of_users[i],
+				password=self.list_of_passwords[i]
 				)
-			token_list.append(response.data['token'])
+			UserProfile.objects.create(
+				user=user
+				)
+			token = Token.objects.create(
+				user=user
+				)
+			token_list.append(token.key)
 		return token_list
 
 	def test_post(self):
 		token_list = self.generate_users_receive_tokens()
-		size_of_list = len(token_list)
-		index = random.randint(0, size_of_list-1)
-		token = token_list[index]
-		model_token = Token.objects.get(key=token)
-		user = model_token.user
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
 
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(model_token.key))
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
 		response = self.client.post(self.reports_url, self.public_report_data, format='json')
 
-		pk = response.data.pop('pk')
 		file_list = response.data.pop('files')
 
 		self.assertEqual(
 			response.status_code,
 			status.HTTP_201_CREATED,
-			msg = "Incorrect status code"
+			msg = "Incorrect response code when creating a valid report"
 			)
 
-		try:
-			r = Report.objects.get(pk=pk)
-		except ObjectDoesNotExist:
-			self.fail("Invalid private key")
-
-		self.assertEqual(
-			response.data['name'],
-			self.public_report_data['name'],
-			msg="Incorrect report name"
-			)
-		self.assertEqual(
-			response.data['short_description'],
-			self.public_report_data['short_description'],
-			msg = "Incorrect short description"
-			)
-		self.assertEqual(
-			response.data['long_description'],
-			self.public_report_data['long_description'],
-			msg = "Incorrect long description"
-			)
-
-		self.client.credentials()
-
-		response = self.client.post(self.reports_url, self.public_report_data, format='json')
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_200_OK,
-			msg="Incorrect status code for unauthorized request"
-			)
-
-	def test_get(self):
-		token_list = self.generate_users_receive_tokens()
-		site_manager_token = token_list[0]
-		reporter_one_token = token_list[1]
-		reporter_two_token = token_list[2]
-
-		user_site_manager = Token.objects.get(key=site_manager_token).user
-		user_profile = UserProfile.objects.get(user=user_site_manager)
-		user_profile.site_manager = True
-		user_profile.save()
-
-		user_1 = Token.objects.get(key=reporter_one_token).user
-		user_2 = Token.objects.get(key=reporter_two_token).user
-
-
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + reporter_one_token)
-		self.client.post(self.reports_url, self.private_report_data, format='json')
-
-		response = self.client.get(self.reports_url)
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_200_OK,
-			msg="Incorrect status code"
-			)
-		self.assertEqual(
-			response.data[0]['name'],
-			self.private_report_data['name'],
-			msg="Incorrect name"
-			)
-		self.assertEqual(
-			response.data[0]['short_description'],
-			self.private_report_data['short_description'],
-			msg="Incorrect short description"
-			)
-		self.assertEqual(
-			response.data[0]['long_description'],
-			self.private_report_data['long_description'],
-			msg="Incorrect long description"
-			)
-		self.assertEqual(
-			response.data[0]['pk'],
-			1,
-			msg="Incorrect private key"
-			)
 		self.assertEqual(
 			Report.objects.count(),
 			1,
-			msg="Incorrect number of reports"
+			msg="Report object not made after successful creation"
 			)
 
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + reporter_two_token)
+		self.assertEqual(
+			Report.objects.get().name,
+			self.public_report_data['name'],
+			msg="Created Report object has incorrect name"
+			)
+
+		self.assertEqual(
+			Report.objects.get().short_description,
+			self.public_report_data['short_description'],
+			msg = "Created Report object has incorrect short description"
+			)
+
+		self.assertEqual(
+			Report.objects.get().long_description,
+			self.public_report_data['long_description'],
+			msg = "Created Report object has incorrect long description"
+			)	
+
+	def test_get_private(self):
+		token_list = self.generate_users_receive_tokens()
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
+		self.client.post(self.reports_url, self.private_report_data, format='json')
 
 		response = self.client.get(self.reports_url)
+
 		self.assertEqual(
 			response.status_code,
 			status.HTTP_200_OK,
-			msg="Incorrect status code" + str(response.data)
+			msg="Valid user was unable to get list of reports"
 			)
+
+		self.assertEqual(
+			response.data[0]['name'],
+			self.private_report_data['name'],
+			msg="List of reports does not match name"
+			)
+
+		self.assertEqual(
+			response.data[0]['short_description'],
+			self.private_report_data['short_description'],
+			msg="List of reports does not match description"
+			)
+
+		self.assertEqual(
+			response.data[0]['long_description'],
+			self.private_report_data['long_description'],
+			msg="List of reports does not match long description"
+			)
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_three_token))
+		response = self.client.get(self.reports_url)
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="A different user was denied a get request"
+			)
+
 		self.assertEqual(
 			len(response.data),
 			0,
-			msg="Incorrect number of reports"
+			msg="A different user was able to see a private report"
 			)
 
 		self.client.credentials(HTTP_AUTHORIZATION='Token ' + site_manager_token)
@@ -230,6 +206,32 @@ class ReportTests(APITestCase):
 			len(response.data),			
 			2,
 			msg="Incorrect number of reports"
+			)
+
+	def test_get_site_manager(self):
+		token_list = self.generate_users_receive_tokens()
+		
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
+		self.client.post(self.reports_url, self.private_report_data, format='json')
+
+		profile = UserProfile.objects.get(user=user_one)
+		profile.site_manager = True
+		profile.save()
+
+		response = self.client.get(self.reports_url)
+
+		self.assertEqual(
+			len(response.data),
+			1,
+			msg="Site manager could not see private report"
 			)
 
 	def test_patch(self):

@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework import authentication, permissions
 from rest_framework.authtoken.models import Token
 
-from authentication.serializers import UserSerializer, UserProfileSerializer, GroupSerializer, SiteManagerSerializer
+from authentication.serializers import UserSerializer, UserProfileSerializer, GroupSerializer, SiteManagerSerializer, TokenSerializer
 from authentication.models import UserProfile
 from authentication.permissions import site_manager_only
 
@@ -50,25 +50,28 @@ class LoginView(views.APIView):
 
 	permission_classes = (permissions.AllowAny,)
 	serializer_class = UserSerializer
-
+	token_serializer = TokenSerializer
 	def post(self,request):
 		"""
 		View takes in username and password, returns token on successfull login
 		NOTE: May want to create unique token for each login
 		"""
-		temp_username = request.data.get('username',None)
-		temp_password = request.data.get('password',None)
-		temp_user = authenticate( username=temp_username,password=temp_password)
+		temp_username = request.data.get('username', None)
+		temp_password = request.data.get('password', None)
+		temp_user = authenticate(
+			username=temp_username,
+			password=temp_password
+			)
 	
 		if temp_user is not None:
-			new_token = Token.objects.get_or_create(user=temp_user)[0]
-			temp_dict = { "token":new_token.key }
-			return Response(temp_dict, status = status.HTTP_200_OK)
+			new_token = Token.objects.get_or_create(user=temp_user)[0]			
+			return Response(
+				self.token_serializer(new_token).data,
+				status = status.HTTP_200_OK
+				)
 		else:
 			return Response(
-				{"Message":"Invalid credentials.",
-				"Input username":temp_username,
-				"Input password":temp_password}, 
+				{"Message":"Invalid credentials"},
 				status = status.HTTP_401_UNAUTHORIZED
 				)
 
@@ -86,7 +89,7 @@ class SiteManagerView(views.APIView):
 	permission_classes = (site_manager_only, )
 	#queryset = UserProfile.objects.filter(site_manager=True)
 	serializer_class = SiteManagerSerializer
-	active_serializer_class = 
+
 	"""
 	users:[{"username":"user1"},{"username":"user2"}], site_manager:true/false, active: true/false
 
@@ -111,8 +114,15 @@ class GroupView(views.APIView):
 
 	serializer_class = GroupSerializer
 
+	"""
+	'pk':2, 'name':'groups are fun', users':[user1, user2,], 'delete':true/false
+	"""
+
 	def post(self, request):
-		serializer = self.serializer_class(data=request.data)
+		serializer = self.serializer_class(
+			data=request.data,
+			context={'action':'create','user':request.user}
+			)
 		if serializer.is_valid():
 			serializer.save(owner=request.user)
 			return Response(
@@ -121,119 +131,38 @@ class GroupView(views.APIView):
 				)
 		else:
 			return Response(
-				[{"Message":"Group could not be created"},
-				{"Errors":serializer.errors}],
+				{"Message":"Group could not be created",
+				"Errors":serializer.errors},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
 	def patch(self, request):
-		group_name = request.data.get('group_name',None)
-		delete_groups = request.data.get('delete',False)
-
-		if group_name is None:
-			return Response(
-				{"Message":"No group name specified"},
-				status = status.HTTP_400_BAD_REQUEST
-				)
 		try:
+			group_name = request.data.get('name')
 			group = Group.objects.get(name=group_name)
-
-			if group not in request.user.groups.all() and :
-				return Response(
-					{"Message":"User can only modify a group they are a member of"},
-					status = status.HTTP_400_BAD_REQUEST
+			user_profile = UserProfile.objects.get(user=request.user)
+			user_groups = request.user.groups.all()
+			
+			if (group in user_groups) or (user_profile.site_manager):
+				serializer = self.serializer_class(
+					group,
+					data=request.data,
+					context={'action':'update','user':request.user}
 					)
-			serializer = self.serializer_class(group, data=request.data)
-			if serializer.is_valid():
-				serializer.save(delete=delete_groups)
-				return Response(
-					{"Message":"Group members deleted"},
-					status=status.HTTP_200_OK
-					)
-			else:
-				return Response(
-					serializer.errors,
-					status = status.HTTP_400_BAD_REQUEST
-					)
+				if serializer.is_valid():
+					serializer.save()
+					return Response(
+						{"Message":"Group successfully modified"},
+						status=status.HTTP_200_OK
+						)
+				else:
+					return Response(
+						serializer.errors,
+						status=status.HTTP_400_BAD_REQUEST
+						)
+			raise ObjectDoesNotExist
 		except ObjectDoesNotExist:
 			return Response(
-				{"Message":"Not a valid group name"},
-				status = status.HTTP_400_BAD_REQUEST
+				{"Message":"User does not have permission to modify this group"},
+				status=status.HTTP_400_BAD_REQUEST
 				)
-
-
-
-# class GenerateView(views.APIView):
-
-# 	email = 'richard.github@gmail.com'
-# 	test_email = 'richard.github@gmail.com'
-
-# 	def post(self, request):
-# 		user = request.user
-# 		user_profile = UserProfile.objects.get(user=user)
-# 		if user_profile.public_key != b'':
-# 			key = RSA.generate(2048)
-# 			user_profile.public_key = key.publickey().exportKey('PEM')
-# 			user_profile.save()
-# 			temp = tempfile.NamedTemporaryFile(delete=True)
-# 			try:
-# 				print("trying")
-# 				email = EmailMessage(
-# 					subject="<IMPORTANT> Secureshare Private Key",
-# 					body="Dear " + request.user.username + ",\n Attached is your private key. Store this in a safe place and do not delete it.",
-# 					to=[self.email,]
-# 					)
-# 				temp.write(key.exportKey('PEM'))
-# 				print("wrote key")
-# 				temp.seek(0)
-# 				file_name = user.username + '_private_key.pem'
-# 				print('attaching')
-# 				email.attach(file_name, temp.read(), 'application/pdf')
-# 				print('done attaching')
-# 				#response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
-# 				#response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
-# 			finally:
-# 				print("closing")
-# 				print('sending')
-# 				res = email.send(fail_silently=False)
-# 				print('done sending')
-# 				temp.close()
-
-# 				return Response(res, status=status.HTTP_200_OK)
-# 		else:
-# 			return Response(
-# 				{"Error":"Key already generated, submit PATCH request"}, 
-# 				status = status.HTTP_400_BAD_REQUEST
-# 				)
-
-# 	def patch(self, request,pk=None):
-# 		user = request.user
-# 		user_profile = UserProfile.objects.get(user=user)
-# 		if user_profile.public_key == b'':
-# 			return Response(
-# 				{"Error":"Submit POST to generate key"},
-# 				status=status.HTTP_400_BAD_REQUEST
-# 				)
-# 		else:
-# 			key = RSA.generate(2048)
-# 			user_profile.public_key = key.publickey().exportKey('PEM')
-# 			user_profile.save()
-# 			temp = tempfile.NamedTemporaryFile(delete=True)
-# 			try:
-# 				temp.write(key.exportKey('PEM'))
-# 				temp.seek(0)
-# 				file_name = user.username + '_private_key.pem'
-# 				response = HttpResponse(temp, content_type='application/download',status=status.HTTP_201_CREATED)
-# 				response['Content-Disposition'] = 'attachment; filename=%s"' % file_name
-# 			finally:
-# 				temp.close()
-# 				return response
-
-# class UserViewSet(viewsets.ModelViewSet):
-# 	serializer_class = UserSerializer
-# 	queryset = User.objects.all()
-
-# 	def list(self, request):
-# 		return Response(self.serializer_class(self.queryset,many=True).data)
-
-# Create your views here.

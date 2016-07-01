@@ -29,11 +29,18 @@ class MessageSerializer(serializers.ModelSerializer):
 				)
 		try:
 			recipient = User.objects.get(username=recipient)
-			data['recipient'] = recipient
+			recipient_profile = UserProfile.objects.get(user = recipient)
+			if data.get('encrypted', False) != False:
+				RSA.importKey(recipient_profile.public_key)
+			data['recipient'] = recipient_profile
 			return data
 		except ObjectDoesNotExist:
 			raise serializers.ValidationError(
 				{"Error":"Recipient does not exist"}
+				)
+		except (IndexError, ValueError):
+			raise serializers.ValidationError(
+				{"Error":"Recipient does not have a valid public key"}
 				)
 
 	def create(self, validated_data):
@@ -44,14 +51,13 @@ class MessageSerializer(serializers.ModelSerializer):
 		encrypted = validated_data.get('encrypted', False)
 
 		if encrypted:
-			user_profile = UserProfile.objects.get(user=recipient)
-			pub_key = RSA.importKey(user_profile.public_key)
+			pub_key = RSA.importKey(recipient.public_key)
 			body = str(pub_key.encrypt(body.encode('utf-8'), 32)[0])
 			subject = str(pub_key.encrypt(subject.encode('utf-8'), 32)[0])
 
 		m = Message.objects.create(
 			sender = sender,
-			recipient = recipient, 
+			recipient = recipient.user, 
 			subject = subject,
 			body = body,
 			encrypted = encrypted 

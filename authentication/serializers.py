@@ -25,12 +25,11 @@ class UserSerializer(serializers.ModelSerializer):
 		if (new_username and new_password and new_email) or (new_username and new_password and self.testing):
 			try:
 				User.objects.get(email = new_email)
-				raise serializers.ValidationError("ERROR: User with this email already exists")
+				raise serializers.ValidationError("Error: User with this email already exists")
 			except ObjectDoesNotExist:
 				return data
 		else:
-			raise serializers.ValidationError({"Message":"Missing required fields."})
-
+			raise serializers.ValidationError({"Error":"Missing required fields."})
 
 	def create(self, validated_data):
 		new_username = validated_data.get('username',None)
@@ -123,48 +122,85 @@ class SiteManagerSerializer(serializers.Serializer):
 
 class GroupSerializer(serializers.Serializer):
 
-	group_name = serializers.CharField(max_length=80)
+	name = serializers.CharField(max_length=80)
 	users = serializers.ListField(
 		child=serializers.CharField(max_length=30)
 		)
+	delete = serializers.BooleanField(required=False)
 
 	def validate(self, data):
+		group_name = data.get('name')
+		action = self.context.get('action')
+
+		if action == 'update':
+			delete = data.get('delete',None)
+			if delete == None:
+				raise serializers.ValidationError(
+					{"Error":"Missing required field 'delete'"}
+					)
+
+		try:
+			Group.objects.get(name=group_name)
+			if action == 'create':
+				raise serializers.ValidationError(
+					{"Error":"This group name already exists"}
+					)
+		except ObjectDoesNotExist:
+			if action == 'update':
+				raise serializers.ValidationError(
+					{"Error":"Group name does not exist"}
+					)
+					
+
 		user_list = data.get('users')
+		new_user_list = []
 
 		for username in user_list:
 			try:
-				user = User.objects.get(username=username)
+				new_user_list.append(User.objects.get(username=username))
 			except ObjectDoesNotExist:
-				raise serializers.ValidationError({"Error":"At least one user does not exist"})
+				raise serializers.ValidationError(
+					{"Error":"At least one user does not exist"}
+					)
+		data['users'] = new_user_list
 		return data
 
 	def create(self, validated_data):
-		owner = validated_data.get('owner')
-		new_group = Group.objects.create(name=validated_data.get('group_name'))
-		new_group.save()
-
-		owner.groups.add(new_group)
+		owner = self.context.get('user')
+		group_name = validated_data.get('name')
 		user_list = validated_data.get('users')
 
-		for username in user_list:
-			user = User.objects.get(username=username)
+		new_group = Group.objects.create(
+			name=group_name
+			)
+
+		for user in user_list:
 			user.groups.add(new_group)
+			user.save()
+
+		owner.groups.add(new_group)
+		owner.save()
 
 		return new_group
 
 	def update(self, instance, validated_data):
 		delete = validated_data.get('delete',False) #default to adding users to groups
-
 		user_list = validated_data.get('users')
 
-		for username in user_list:
-			user = User.objects.get(username=username)
+		for user in user_list:
+			group_list = user.groups.all()
 			if not delete:
-				if instance not in user.groups.all():
+				if instance not in group_list:
 					user.groups.add(instance)
 			else:
-				if instance in user.groups.all():
+				if instance in group_list:
 					user.groups.remove(instance)
 			user.save()
 
 		return instance
+
+class TokenSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Token
+		fields = ('key',)
+		extra_kwargs = {'key':{'read_only':True}}

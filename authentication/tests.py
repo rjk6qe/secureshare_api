@@ -18,21 +18,19 @@ import os
 
 class UserTests(APITestCase):
 
-	username = 'test_user'
-	password = 'test_password'
+	list_of_users = ['user1','user2','user3']
+	list_of_passwords = ['password1','password2','user3']
 
-	list_of_users = ['user1','user2']
-	list_of_passwords = ['password1','password2']
 	email = 'richard.github@gmail.com'
 
-	user_data = {"username":list_of_users[0],"password":list_of_passwords[0],"email":"fake@fake.com","testing":'True'}
+	user_data = {"username":list_of_users[0],"password":list_of_passwords[0],"email":"fake@fake.com"}
+
 
 	register_url = '/api/v1/users/register/'
 	login_url = '/api/v1/users/login/'
 	logout_url = '/api/v1/users/logout/'
 	report_list_url = '/api/v1/reports/'
 	group_url = '/api/v1/users/groups/'
-	generate_url = '/api/v1/encrypt/generate/'
 
 	serializer_class = ReportSerializer
 
@@ -41,114 +39,101 @@ class UserTests(APITestCase):
 		token_list = []
 		
 		for i in range(0, size_of_list):
-			self.user_data['username'] = self.list_of_users[i]
-			self.user_data['password'] = self.list_of_passwords[i]
-			if i == 1:
-				self.user_data['email'] = self.email
-			self.client.post(self.register_url, self.user_data, format='json')
-			self.assertEqual(
-				User.objects.count(),
-				i+1,
-				msg="Users not created"
-			)
-			response = self.client.post(self.login_url, self.user_data, format='json')
-			
-			self.assertEqual(
-				response.status_code,
-				status.HTTP_200_OK,
-				msg="invalid user"
+			user = User.objects.create(
+				username=self.list_of_users[i],
+				password=self.list_of_passwords[i]
 				)
-			try:
-				user_profile = UserProfile.objects.get(user=User.objects.get(pk=i+1))
-				self.assertEqual(
-					user_profile.site_manager,
-					False,
-					msg="UserProfile incorrectly gives sitemanager status"
-					)
-			except ObjectDoesNotExist:
-				self.fail("UserProfile objects not created")
-
-			token_list.append(response.data['token'])
-			self.user_data['email'] = 'fake@fake.com'
+			UserProfile.objects.create(
+				user=user
+				)
+			token = Token.objects.create(
+				user=user
+				)
+			token_list.append(token.key)
 		return token_list
 
 	def test_register_user(self):
-		size_of_list = len(self.list_of_users)
-		for i in range(0,size_of_list):
-			data = {"username": self.list_of_users[i], "password" : self.list_of_passwords[i]}
-			response = self.client.post(self.register_url, data, format='json')
-			response_data = response.data
+		response = self.client.post(self.register_url, self.user_data, format='json')
 
-			self.assertEqual(
-				response.status_code, 
-				status.HTTP_201_CREATED, 
-				msg="Incorrect status code" + str(response.data)
-				)
-			self.assertEqual(
-				User.objects.count(), 
-				i+1,
-				msg="Incorrect number of users"
-				)
-			self.assertEqual(
-				User.objects.get(pk=i+1).username,
-				self.list_of_users[i],
-				msg="Incorrect username"
-				)
+		self.assertEqual(
+			response.status_code, 
+			status.HTTP_201_CREATED,
+			msg="Registration failed" + str(response.data)
+			)
+
+		self.assertEqual(
+			User.objects.count(), 
+			1,
+			msg="Registration did not create a new User object"
+			)
+
+		self.assertEqual(
+			User.objects.get(pk=1).username,
+			self.user_data['username'],
+			msg="Registration created a User object with an incorrect username"
+			)
+
+		response = self.client.post(self.register_url, self.user_data, format='json')
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
+			msg="Registration allowed the same username twice"
+			)
+
+		self.assertEqual(
+			User.objects.count(),
+			1,
+			msg="Failed registration still created a user"
+			)
 
 	def test_login_user(self):
-		data = {'username' : self.username, 'password' : self.password}
 
-		register_response = self.client.post(self.register_url, data, format='json')
-		
-		user = User.objects.get(username = self.username)
+		user = User.objects.create(
+			username=self.user_data['username'],
+			)
+		user.set_password(self.user_data['password'])
+		user.save()
 
-		response = self.client.post(self.login_url, data, format='json')
+		response = self.client.post(self.login_url, self.user_data, format='json')
 
 		self.assertEqual(
 			response.status_code,
 			status.HTTP_200_OK,
-			msg="Incorrect status code"
+			msg="Login failed"
 			)
 		try:
 			self.assertEqual(
 				Token.objects.get(user=user).key,
-				response.data['token'],
-				msg="Incorrect token returned"
+				response.data['key'],
+				msg="Login returned the incorrect key"
 				)
+			self.assertEqual
 		except ObjectDoesNotExist:
-			self.fail(msg="Token does not exist")
-
-
+			self.fail(msg="Login failed because the key did not exist")
 
 	def test_logout_user(self):
-		data = {'username' : self.username, 'password' : self.password}
 
-		self.client.post(self.register_url, data, format='json')
-		response = self.client.post(self.login_url, data, format='json')
-
-		first_token = response.data['token']
-
-		user = Token.objects.get(key=first_token).user
-
-		self.client.credentials(HTTP_AUTHORIZATION= 'Token ' + str(first_token))
-		response = self.client.get(self.report_list_url)
-
-		self.assertEqual(
-			response.status_code,
-			status.HTTP_200_OK,
-			msg="First token did not work"
+		user = User.objects.create(
+			username=self.user_data['username']
 			)
+		user.set_password(self.user_data['password'])
+		user.save()
+		
+		response = self.client.post(self.login_url, self.user_data, format='json')
 
-		response = self.client.post(self.login_url, data, format='json')
+		first_token = response.data['key']
 
-		second_token = response.data['token']
+		response = self.client.post(self.login_url, self.user_data, format='json')
+		second_token = response.data['key']
 
 		self.assertEqual(
 			first_token,
 			second_token,
-			msg="New token created for multiple logins"
+			msg="Consecutive logins created new tokens"
 			)
 
+		self.client.credentials(HTTP_AUTHORIZATION="Token " + str(first_token))
 		response = self.client.get(self.logout_url)
 
 		self.assertEqual(
@@ -168,11 +153,11 @@ class UserTests(APITestCase):
 		self.assertEqual(
 			response.status_code,
 			status.HTTP_401_UNAUTHORIZED,
-			msg="Old token still allowed access"
+			msg="Logged out user was allowed access with old token"
 			)
 
 		self.client.credentials()
-		response = self.client.post(self.login_url, data, format='json')
+		response = self.client.post(self.login_url, self.user_data, format='json')
 
 		self.assertEqual(
 			response.status_code,
@@ -180,7 +165,7 @@ class UserTests(APITestCase):
 			msg="Could not log in with logged out user" + str(response.data)
 			)
 
-		third_token = response.data['token']
+		third_token = response.data['key']
 
 		self.assertNotEqual(
 			third_token,
@@ -188,154 +173,128 @@ class UserTests(APITestCase):
 			msg="New token was not created on login"
 			)
 
-
-	def test_groups(self):
+	def test_group_creation(self):
 		token_list = self.generate_users_receive_tokens()
 		user_one_token = token_list[0]
-
 		user_two_token = token_list[1]
-		user_two_username = self.list_of_users[1]
+		user_three_token = token_list[2]
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		group_data = {"name":"group 1", "users":[user_two.username,]}
 
 		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
-		group_data = {}
-		group_data["group_name"]= "group_one" 
-		group_data["users"] = [user_two_username,]
-
 		response = self.client.post(self.group_url, group_data, format='json')
+
 		self.assertEqual(
 			response.status_code,
 			status.HTTP_201_CREATED,
-			msg="Incorrect response code for group creation" + str(response.data)
+			msg="Group creation returned incorrect response code" + str(response.data)
 			)
+
 		self.assertEqual(
 			Group.objects.count(),
 			1,
-			msg="Group not created"
-			)
-		group = Group.objects.get()
-		self.assertEqual(
-			group in Token.objects.get(key=user_one_token).user.groups.all(),
-			True,
-			msg="Group not in creator's groups"
+			msg="Group object not created"
 			)
 		self.assertEqual(
-			group in Token.objects.get(key=user_two_token).user.groups.all(),
-			True,
-			msg="Group not in listed users' groups"
+			Group.objects.get().name,
+			group_data['name'],
+			msg="Group creation gave the wrong name"
 			)
 
+		group = Group.objects.get()
+		
+		self.assertEqual(
+			group in user_one.groups.all(),
+			True,
+			msg="Group was not in creator's groups"
+			)
+		self.assertEqual(
+			group in user_two.groups.all(),
+			True,
+			msg="Group was not in listed users' groups"
+			)
+
+	def test_group_modification(self):
+		token_list = self.generate_users_receive_tokens()
+		user_one_token = token_list[0]
+		user_two_token = token_list[1]
+		user_three_token = token_list[2]
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
+		user_three = User.objects.get(username=self.list_of_users[2])
+
+		group_data = {"name":"group 1", "users":[user_two.username,]}
+
+		group = Group.objects.create(
+			name=group_data['name']
+			)
+
+		user_one.groups.add(group)
+		user_two.groups.add(group)
+
+		user_one.save()
+		user_two.save()
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])		
+
 		group_data['delete'] = True
+		group_data['users'] = [user_two.username,]
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_one_token))
 		response = self.client.patch(self.group_url, group_data, format='json')
+
+		user_one = User.objects.get(username=self.list_of_users[0])
+		user_two = User.objects.get(username=self.list_of_users[1])
 
 		self.assertEqual(
 			response.status_code,
 			status.HTTP_200_OK,
-			msg="Incorrect response code for group modification" + str(response.data)
+			msg="Group modification returned incorrect response code" + str(response.data)
 			)
+		
 		self.assertEqual(
-			group in Token.objects.get(key=user_one_token).user.groups.all(),
+			group in user_one.groups.all(),
 			True,
-			msg="Group modification deleted wrong user"
+			msg="Group modification deleted incorrect user"
 			)
+
 		self.assertEqual(
-			group in Token.objects.get(key=user_two_token).user.groups.all(),
+			group in user_two.groups.all(),
 			False,
 			msg="Group modification did not delete user"
 			)		
 
-		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
 		group_data['delete'] = False
+
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_two_token))
 		response = self.client.patch(self.group_url, group_data, format='json')
 
 		self.assertEqual(
-			status.HTTP_400_BAD_REQUEST,
 			response.status_code,
+			status.HTTP_400_BAD_REQUEST,
 			msg="Outside user was able to add self to group"
 			)
 
-		"""
-		Insert test code for site manager modifiying groups
-		"""
+		user_two.groups.add(group)
+		user_two.save()
 
+		user_profile = UserProfile.objects.get(user=user_three)
+		user_profile.site_manager=True
+		user_profile.save()
 
+		group_data['delete'] = False
 
-	# def test_generate_post_key(self):
-	# 	token_list = self.generate_users_receive_tokens()
+		self.client.credentials(HTTP_AUTHORIZATION='Token ' + str(user_three_token))
+		response = self.client.patch(self.group_url, group_data, format='json')		
 
-	# 	self.client.credentials(HTTP_AUTHORIZATION='Token ' + token_list[3])
-	# 	user = Token.objects.get(key=token_list[3]).user
-	# 	response = self.client.post(self.generate_url)
-
-	# 	user_profile = UserProfile.objects.get(user=user)
-
-	# 	self.assertEqual(
-	# 		response.status_code,
-	# 		status.HTTP_201_CREATED
-	# 		)
-	# 	self.assertNotEqual(
-	# 		user_profile.public_key,
-	# 		b'',
-	# 		msg="Public key was not generated"
-	# 		)
-		
-	# 	msg = "This is such a wonderfully long string, sure hope it works as I intended it to"
-	# 	pub_key = RSA.importKey(user_profile.public_key)
-	# 	private_key = RSA.importKey(response.content)
-
-	# 	emsg = pub_key.encrypt(msg.encode('utf-8'), 32)[0]
-	# 	dmsg = private_key.decrypt(emsg).decode('utf-8')
-
-	# 	self.assertEqual(
-	# 		msg,
-	# 		dmsg,
-	# 		msg="encryption fail"
-	# 		)
-
-	# 	response = self.client.post(self.generate_url)
-	# 	self.assertEqual(
-	# 		response.status_code,
-	# 		status.HTTP_400_BAD_REQUEST,
-	# 		msg="Regenerated key"
-	# 		)
-
-	# def test_generate_patch_key(self):
-	# 	token_list = self.generate_users_receive_tokens()
-
-	# 	self.client.credentials(HTTP_AUTHORIZATION='Token ' + token_list[3])
-	# 	response = self.client.patch(self.generate_url)
-	# 	self.assertEqual(
-	# 		response.status_code,
-	# 		status.HTTP_400_BAD_REQUEST,
-	# 		msg="Regenerated key for new user" + str(response.data)
-	# 		)
-
-	# 	response = self.client.post(self.generate_url)
-
-
-	# 	user = Token.objects.get(key=token_list[3]).user
-	# 	user_profile = UserProfile.objects.get(user=user)
-	# 	pub_key = RSA.importKey(user_profile.public_key)
-
-	# 	msg = "This is such a wonderfully long string, sure hope it works as I intended it to"
-	# 	emsg_old = pub_key.encrypt(msg.encode('utf-8'), 32)[0]
-
-	# 	response = self.client.patch(self.generate_url)
-
-	# 	user_profile = UserProfile.objects.get(user=user)
-	# 	pub_key = RSA.importKey(user_profile.public_key)
-	# 	emsg_new = pub_key.encrypt(msg.encode('utf-8'), 32)[0]
-
-	# 	self.assertNotEqual(
-	# 		emsg_old,
-	# 		emsg_new,
-	# 		msg="Encryption did not change"
-	# 		)
-
-	# 	private_key = RSA.importKey(response.content)
-	# 	dmsg = private_key.decrypt(emsg_new).decode('utf-8')
-
-	# 	self.assertEqual(
-	# 		msg,
-	# 		dmsg,
-	# 		msg="Encryption failed"
-	# 		)
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_200_OK,
+			msg="Site manager was not allowed to modify group" + str(response.data)
+			)
