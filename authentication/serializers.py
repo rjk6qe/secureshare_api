@@ -140,7 +140,7 @@ class GroupSerializer(serializers.Serializer):
 		try:
 			Group.objects.get(name=group_name)
 			if action == 'create':
-				raise serializers.ValidationError("Error":"This group name already exists")
+				raise serializers.ValidationError("This group name already exists")
 		except ObjectDoesNotExist:
 			if action == 'update':
 				raise serializers.ValidationError("Group name does not exist")

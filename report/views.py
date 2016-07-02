@@ -69,7 +69,7 @@ class ReportView(views.APIView):
 		"""
 		if 'pk' not in self.kwargs:
 			return Response(
-				{"Message":"Keep to specify key"}
+				{"Message":"Keep to specify key"},
 				status = status.HTTP_405_METHOD_NOT_ALLOWED,
 				)
 		pk = self.kwargs['pk']
