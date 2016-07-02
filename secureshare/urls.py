@@ -10,7 +10,7 @@ from report.views import ReportView, FolderView
 from secureshare_messages.views import MessageInboxView, MessageSendView, MessageOutboxView, MessageDecryptView
 from authentication.views import RegisterView, LoginView, LogoutView, SiteManagerView, GroupView
 
-router = routers.SimpleRouter()
+#router = routers.SimpleRouter()
 #router.register(r'reports',ReportViewSet, base_name='Report')
 #router.register(r'messages',MessageViewSet, base_name='Message')
 

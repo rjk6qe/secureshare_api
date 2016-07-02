@@ -53,9 +53,9 @@ class ReportSerializer(serializers.ModelSerializer):
 		encrypted_list = data.get('encrypted',None)
 		if num_files > 0:
 			if encrypted_list == None:
-				raise serializers.VaildationError({"Error":"There are uploaded files and no encrypted field"})
+				raise serializers.VaildationError("There are uploaded files and no encrypted field")
 			if num_files != len(encrypted_list):
-				raise serializers.ValidationError({"Error":"The encrypted field expects a boolean for each file uploaded","num_files":str(num_files),"encrypted":str(len(encrypted_list))})
+				raise serializers.ValidationError("The encrypted field expects a boolean for each file uploaded")
 
 		if creating:
 			report_name = data.get('name',None)
@@ -64,9 +64,7 @@ class ReportSerializer(serializers.ModelSerializer):
 			data['owner'] = owner
 
 			if not (report_name and s_descr and l_descr):
-				raise serializers.ValidationError(
-					{"Error":"Missing required fields"}
-					)
+				raise serializers.ValidationError("Missing required fields")
 			# if not self.unique_report(owner, report_name):
 			# 	raise serializers.ValidationError(
 			# 		{"Error":"User already has a report with this name"}
@@ -116,19 +114,13 @@ class FolderSerializer(serializers.ModelSerializer):
 			folder_list = Folder.objects.filter(owner=owner)
 			for folder in folder_list:
 				if folder.name == name:
-					raise serializers.ValidationError(
-						{"Error":"User already has a report with this name"}
-						)
+					raise serializers.ValidationError("User already has a report with this name")
 
 		report_list = data.get('reports',None)
 		if report_list == None:
-			raise serializers.ValidationError(
-				{"Error":"Must specify at least one report"}
-				)
+			raise serializers.ValidationError("Must specify at least one report")
 		if len(report_list) == 0:
-			raise serializers.ValidationError(
-				{"Error":"Must specify at least one report"}
-				)
+			raise serializers.ValidationError("Must specify at least one report")
 
 		new_report_list = []
 		new_group_list = []
@@ -138,9 +130,7 @@ class FolderSerializer(serializers.ModelSerializer):
 			try:
 				new_report_list.append(Report.objects.get(pk=report))
 			except ObjectDoesNotExist:
-				raise serializers.ValidationError(
-					{"Error":"At least one report name was invalid"}
-					)
+				raise serializers.ValidationError("At least one report name was invalid")
 
 		data['reports'] = new_report_list
 
@@ -151,9 +141,7 @@ class FolderSerializer(serializers.ModelSerializer):
 			try:
 				new_group_list.append(Group.objects.get(name=group))
 			except ObjectDoesNotExist:
-				raise serializers.ValidationError(
-					{"Error":"At least one group name was invalid"}
-					)
+				raise serializers.ValidationError("At least one group name was invalid")
 
 		data['groups'] = new_group_list
 		return data

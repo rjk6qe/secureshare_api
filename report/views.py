@@ -69,7 +69,8 @@ class ReportView(views.APIView):
 		"""
 		if 'pk' not in self.kwargs:
 			return Response(
-				status = status.HTTP_400_BAD_REQUEST,
+				{"Message":"Keep to specify key"}
+				status = status.HTTP_405_METHOD_NOT_ALLOWED,
 				)
 		pk = self.kwargs['pk']
 		try:
@@ -90,7 +91,7 @@ class ReportView(views.APIView):
 					)
 			else:
 				return Response(
-					serializer.errors,
+					{"Error":serializer.errors},
 					status = status.HTTP_400_BAD_REQUEST
 					)
 			raise ObjectDoesNotExist
@@ -155,8 +156,7 @@ class ReportView(views.APIView):
 				)
 		else:
 			return Response(
-				serializer.errors,
-
+				{"Error":serializer.errors},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
@@ -184,7 +184,7 @@ class FolderView(views.APIView):
 				status = status.HTTP_201_CREATED
 				)
 		else:
-			return Response(serializer.errors)
+			return Response({"Error":serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 	def patch(self, request, pk=None):
 		if 'pk' not in self.kwargs:
@@ -206,7 +206,7 @@ class FolderView(views.APIView):
 					serializer.save()
 				else:
 					return Response(
-						serializer.errors,
+						{"Error":serializer.errors},
 						status = status.HTTP_400_BAD_REQUEST
 						)
 			raise ObjectDoesNotExist

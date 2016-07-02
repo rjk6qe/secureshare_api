@@ -35,9 +35,9 @@ class RegisterView(views.APIView):
 				serializer.save(user=user)
 				return Response(serializer.data, status = status.HTTP_201_CREATED)
 			else:
-				return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+				return Response({"Error":serializer.errors}, status = status.HTTP_400_BAD_REQUEST)
 		else:
-			return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+			return Response({"Error":serializer.errors}, status = status.HTTP_400_BAD_REQUEST)
 
 	def get(self,request):
 		"""
@@ -105,7 +105,7 @@ class SiteManagerView(views.APIView):
 				)
 		else:
 			return Response(
-				serializer.errors,
+				{"Error":serializer.errors},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 
@@ -130,9 +130,7 @@ class GroupView(views.APIView):
 				status = status.HTTP_201_CREATED
 				)
 		else:
-			return Response(
-				{"Message":"Group could not be created",
-				"Errors":serializer.errors},
+			return Response({"Error":serializer.errors},
 				status = status.HTTP_400_BAD_REQUEST
 				)
 

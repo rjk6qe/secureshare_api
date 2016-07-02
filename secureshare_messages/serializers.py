@@ -24,9 +24,7 @@ class MessageSerializer(serializers.ModelSerializer):
 		recipient = data.get('recipient',None)
 
 		if not (subject and body and recipient):
-			raise serializers.ValidationError(
-				{"Error":"Missing required fields"}
-				)
+			raise serializers.ValidationError("Missing required fields")
 		try:
 			recipient = User.objects.get(username=recipient)
 			recipient_profile = UserProfile.objects.get(user = recipient)
@@ -35,13 +33,9 @@ class MessageSerializer(serializers.ModelSerializer):
 			data['recipient'] = recipient_profile
 			return data
 		except ObjectDoesNotExist:
-			raise serializers.ValidationError(
-				{"Error":"Recipient does not exist"}
-				)
+			raise serializers.ValidationError("Recipient does not exist")
 		except (IndexError, ValueError):
-			raise serializers.ValidationError(
-				{"Error":"Recipient does not have a valid public key"}
-				)
+			raise serializers.ValidationError("Recipient does not have a valid public key")
 
 	def create(self, validated_data):
 		sender = validated_data.get('sender',None)
@@ -62,5 +56,4 @@ class MessageSerializer(serializers.ModelSerializer):
 			body = body,
 			encrypted = encrypted 
 			)
-
 		return m

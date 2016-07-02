@@ -25,11 +25,11 @@ class UserSerializer(serializers.ModelSerializer):
 		if (new_username and new_password and new_email) or (new_username and new_password and self.testing):
 			try:
 				User.objects.get(email = new_email)
-				raise serializers.ValidationError("Error: User with this email already exists")
+				raise serializers.ValidationError("User with this email already exists")
 			except ObjectDoesNotExist:
 				return data
 		else:
-			raise serializers.ValidationError({"Error":"Missing required fields."})
+			raise serializers.ValidationError("Missing required fields.")
 
 	def create(self, validated_data):
 		new_username = validated_data.get('username',None)
@@ -135,22 +135,15 @@ class GroupSerializer(serializers.Serializer):
 		if action == 'update':
 			delete = data.get('delete',None)
 			if delete == None:
-				raise serializers.ValidationError(
-					{"Error":"Missing required field 'delete'"}
-					)
+				raise serializers.ValidationError("Missing required field 'delete'")
 
 		try:
 			Group.objects.get(name=group_name)
 			if action == 'create':
-				raise serializers.ValidationError(
-					{"Error":"This group name already exists"}
-					)
+				raise serializers.ValidationError("Error":"This group name already exists")
 		except ObjectDoesNotExist:
 			if action == 'update':
-				raise serializers.ValidationError(
-					{"Error":"Group name does not exist"}
-					)
-					
+				raise serializers.ValidationError("Group name does not exist")
 
 		user_list = data.get('users')
 		new_user_list = []
@@ -159,9 +152,7 @@ class GroupSerializer(serializers.Serializer):
 			try:
 				new_user_list.append(User.objects.get(username=username))
 			except ObjectDoesNotExist:
-				raise serializers.ValidationError(
-					{"Error":"At least one user does not exist"}
-					)
+				raise serializers.ValidationError("At least one user does not exist")
 		data['users'] = new_user_list
 		return data
 

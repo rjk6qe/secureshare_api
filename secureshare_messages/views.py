@@ -88,7 +88,7 @@ class MessageSendView(views.APIView):
 				status=status.HTTP_200_OK
 				)
 		return Response(
-			serializer.errors,
+			{"Error":serializer.errors},
 			status = status.HTTP_400_BAD_REQUEST
 			)
 
@@ -114,7 +114,7 @@ class MessageOutboxView(views.APIView):
 		queryset = Message.objects.filter(sender=request.user)
 		serializer = self.serializer_class(queryset, many=True)
 		return Response(
-			serializer.data,
+			{"Error":serializer.errors},
 			status=status.HTTP_200_OK
 			)
 
